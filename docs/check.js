@@ -30,6 +30,7 @@ function checkProposal(data) {
   const onYes = body?.match(/(?:^|[,.!?\n])\s*(bei ja\b[^.!?\n]+?)(?=,\s*bei nein\b|[.!?\n]|$)/iu)?.[1].trim();
   const onNo = body?.match(/(?:^|[,.!?\n])\s*(bei nein\b[^.!?\n]+)/iu)?.[1].trim();
   const bodyProcedure = body?.match(/\b(volksinitiative|initiative|motion|referendum|petition)\b/iu)?.[0];
+  const petitionRecipient = body?.match(/\bpetition\b[^.!?\n]{0,120}?\ban\s+(?:den|die|das)\s+(Gemeinderat|Stadtrat|Kantonsrat|Bundesrat|Gemeindeversammlung)\b/iu)?.[1];
   const split = stem.match(/^(Soll (?:die Stadt|die Gemeinde|der Kanton|der Bund)) ([\p{Lu}][\p{L}-]*) oder ([\p{Lu}][\p{L}-]*) (bauen|finanzieren|fördern|einführen)$/u);
   const separateQuestions = text.match(/[^?]+\?/gu)?.map(question => question.trim()) || [];
   const parkingFees = stem.match(/^Soll (die Gemeinde|die Stadt|der Kanton) weiterhin (Gebühren für .+) erheben$/iu);
@@ -65,11 +66,21 @@ function checkProposal(data) {
     hints.push('Wenn du das erste Vorhaben einzeln prüfen willst: ' + split[1] + ' ' + split[2] + ' ' + split[4] + '?');
     hints.push('Wenn du das zweite Vorhaben einzeln prüfen willst: ' + split[1] + ' ' + split[3] + ' ' + split[4] + '?');
     hints.push('Wenn beide Vorhaben als Paket gemeint sind: ' + split[1] + ' ' + split[2] + ' und ' + split[3] + ' ' + split[4] + '?');
+    if (split[4] === 'bauen') {
+      hints.push('Wenn es um dieselbe Fläche geht: ' + split[1] + ' auf [genauer Ort] ' + split[3] + ' bauen und dafür [heutige Nutzung] aufgeben?');
+    }
   } else if (multiple && separateQuestions.every(question => /^soll(?:en)?\s/iu.test(question))) {
-    hints.push(...separateQuestions.map(question => 'Wenn du dieses Vorhaben einzeln prüfen willst: ' + question.replace(/^Soll (?:er|sie) /iu, 'Soll [zuständige Stelle] ')));
+    const firstActor = separateQuestions[0].match(/^Soll (der Kanton|der Bund|die Gemeinde|die Stadt)(?=\s)/iu)?.[1];
+    const secondPronoun = /^der /iu.test(firstActor || '') ? 'er' : 'sie';
+    hints.push(...separateQuestions.map((question, index) => {
+      const pronoun = question.match(/^Soll (er|sie) /iu)?.[1].toLowerCase();
+      if (!pronoun) return 'Wenn du dieses Vorhaben einzeln prüfen willst: ' + question;
+      const actor = index === 1 && firstActor && pronoun === secondPronoun ? firstActor : '[zuständige Stelle]';
+      return 'Wenn dieselbe Stelle zuständig ist: ' + question.replace(/^Soll (?:er|sie) /iu, 'Soll ' + actor + ' ');
+    }));
   } else if (alternatives && !multiple && !open) {
     const alternative = stem.match(/^Soll (die Stadt|die Gemeinde|der Kanton|der Bund) .+ oder soll (?:sie|er) (.+)$/iu);
-    if (alternative) hints.push('Wenn der erste Teil beschreibt, was heute gilt: Soll ' + alternative[1] + ' ' + alternative[2] + '?');
+    if (alternative) hints.push('Wenn der erste Teil beschreibt, was heute gilt: Soll ' + alternative[1] + ' ' + alternative[2].replace(/\bdort\b/iu, 'auf [genauer Ort]') + '?');
   }
   const keep = stem.match(/^(Soll(?:en)?) (.+) beibehalten werden$/iu);
   if (direction === 'keep' || negative || (continued && direction !== 'change')) {
@@ -81,6 +92,8 @@ function checkProposal(data) {
     else if (parkingFees) {
       hints.push('Wenn du die Gebühr senken willst: Soll ' + parkingFees[1] + ' die ' + parkingFees[2] + ' senken?');
       hints.push('Wenn du die Gebühr abschaffen willst: Soll ' + parkingFees[1] + ' die ' + parkingFees[2] + ' abschaffen?');
+      hints.push('Wenn die Gebührenregel ausläuft und du sie verlängern willst: Soll ' + parkingFees[1] + ' die Erhebung der ' + parkingFees[2] + ' bis [Datum] verlängern?');
+      hints.push('Wenn du je nach Parkdauer unterschiedlich hohe Gebühren willst: Soll ' + parkingFees[1] + ' die ' + parkingFees[2] + ' nach [Parkdauer und Tarifen] staffeln?');
     } else hints.push('Soll [zuständige Stelle] [die heutige Regel] durch [deine gewünschte Änderung] ersetzen?');
   } else if (direction === 'change' && baseline) {
     add('good', 'Nach deiner Angabe', 'Dein Ausgangspunkt: «' + baseline + '». Nach deiner Einschätzung würde Ja etwas ändern und Nein diesen Zustand belassen.', 'Gleiche den Ausgangspunkt mit einer aktuellen Quelle ab.');
@@ -98,6 +111,8 @@ function checkProposal(data) {
     add('bad', 'Politischen Bezug ergänzen', 'Die Frage betrifft offenbar eine Entscheidung innerhalb der Klasse.', 'Wenn dein Thema politisch sein soll, wähle eine Regel oder Massnahme, die eine zuständige öffentliche Stelle beeinflussen kann.');
   } else if (route) {
     add('good', 'Weg angegeben', 'Du nennst «' + route + '» als möglichen Weg.' + (foreign ? ' Der Auslandsbezug ist laut deiner Angabe im Beitrag erläutert.' : ''), 'Prüfe anhand einer offiziellen Quelle, wer das Verfahren anstossen darf und welche Stelle entscheiden kann.');
+  } else if (petitionRecipient) {
+    add('warn', 'Verfahren und Adressat im Beitrag', 'Du nennst eine Petition und den «' + petitionRecipient + '» als Adressaten.', 'Prüfe, ob die genannte Stelle über die Massnahme entscheiden kann oder das Anliegen an eine andere Stelle weiterleitet.');
   } else if (bodyProcedure) {
     add('warn', 'Verfahren im Beitrag erwähnt', 'Du erwähnst «' + bodyProcedure + '» im Beitrag.', 'Prüfe, welche Stelle zuständig ist und wie dieses Verfahren die gewünschte Änderung anstossen könnte.');
   } else {

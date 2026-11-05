@@ -29,6 +29,8 @@ function checkProposal(data) {
   const today = body?.match(/(?:^|[.!?\n])\s*((?:heute|bisher|derzeit)\b[^.!?\n]+)/iu)?.[1].trim();
   const onYes = body?.match(/(?:^|[,.!?\n])\s*(bei ja\b[^.!?\n]+?)(?=,\s*bei nein\b|[.!?\n]|$)/iu)?.[1].trim();
   const onNo = body?.match(/(?:^|[,.!?\n])\s*(bei nein\b[^.!?\n]+)/iu)?.[1].trim();
+  const noKeepsBaseline = !/\b(?:nicht|kaum)\b/iu.test(onNo || '') && /^bei nein\s+(?:bleibt|bleiben)\b.*\b(?:unverändert|wie bisher|wie heute)\b/iu.test(onNo || '');
+  const yesStatesChange = !/\b(?:nicht|nie|unverändert|wie bisher)\b/iu.test(onYes || '') && /^bei ja\b.*\b(?:neu|zusätzlich|erstmals|auch am|auch an|auch sonntags|wird abgeschafft)\b/iu.test(onYes || '');
   const bodyProcedure = body?.match(/\b(volksinitiative|initiative|motion|referendum|petition)\b/iu)?.[0];
   const petitionRecipient = body?.match(/\bpetition\b[^.!?\n]{0,120}?\ban\s+(?:den|die|das)\s+(Gemeinderat|Stadtrat|Kantonsrat|Bundesrat|Gemeindeversammlung)\b/iu)?.[1];
   const split = stem.match(/^(Soll (?:die Stadt|die Gemeinde|der Kanton|der Bund)) ([\p{Lu}][\p{L}-]*) oder ([\p{Lu}][\p{L}-]*) (bauen|finanzieren|fördern|einführen)$/u);
@@ -67,7 +69,9 @@ function checkProposal(data) {
     hints.push('Wenn du das zweite Vorhaben einzeln prüfen willst: ' + split[1] + ' ' + split[3] + ' ' + split[4] + '?');
     hints.push('Wenn beide Vorhaben als Paket gemeint sind: ' + split[1] + ' ' + split[2] + ' und ' + split[3] + ' ' + split[4] + '?');
     if (split[4] === 'bauen') {
-      hints.push('Wenn es um dieselbe Fläche geht: ' + split[1] + ' auf [genauer Ort] ' + split[3] + ' bauen und dafür [heutige Nutzung] aufgeben?');
+      for (const use of [split[2], split[3]]) {
+        hints.push('Wenn es um dieselbe Fläche geht und du ' + use + ' vorschlagen willst: ' + split[1] + ' auf [genauer Ort] ' + use + ' bauen? Beschreibe im Beitrag, wie sich dadurch [heutige Nutzung] verändern würde.');
+      }
     }
   } else if (multiple && separateQuestions.every(question => /^soll(?:en)?\s/iu.test(question))) {
     const firstActor = separateQuestions[0].match(/^Soll (der Kanton|der Bund|die Gemeinde|die Stadt)(?=\s)/iu)?.[1];
@@ -78,8 +82,16 @@ function checkProposal(data) {
       const actor = index === 1 && firstActor && pronoun === secondPronoun ? firstActor : '[zuständige Stelle]';
       return 'Wenn dieselbe Stelle zuständig ist: ' + question.replace(/^Soll (?:er|sie) /iu, 'Soll ' + actor + ' ');
     }));
+    const first = separateQuestions[0].match(/^Soll ((?:der Kanton|der Bund|die Gemeinde|die Stadt)) (.+)\?$/iu);
+    const second = separateQuestions[1]?.match(/^Soll (er|sie) (.+)\?$/iu);
+    if (separateQuestions.length === 2 && first && second && second[1].toLowerCase() === secondPronoun) {
+      hints.push('Wenn beide Vorhaben gemeinsam entschieden werden sollen: Soll ' + first[1] + ' ' + first[2] + ' und ' + second[2] + '?');
+    }
   } else if (alternatives && !multiple && !open) {
     const alternative = stem.match(/^Soll (die Stadt|die Gemeinde|der Kanton|der Bund) .+ oder soll (?:sie|er) (.+)$/iu);
+    if (alternative && /\bbehalten\b/iu.test(stem)) {
+      hints.push('Wenn beide Nutzungen erst geplant sind: Beschreibe zuerst, wie die Fläche heute genutzt wird. Stelle dann eine der beiden Nutzungen zur Entscheidung und erkläre, was bei Nein mit der Fläche geschieht.');
+    }
     if (alternative) hints.push('Wenn der erste Teil beschreibt, was heute gilt: Soll ' + alternative[1] + ' ' + alternative[2].replace(/\bdort\b/iu, 'auf [genauer Ort]') + '?');
   }
   const keep = stem.match(/^(Soll(?:en)?) (.+) beibehalten werden$/iu);
@@ -93,12 +105,16 @@ function checkProposal(data) {
       hints.push('Wenn du die Gebühr senken willst: Soll ' + parkingFees[1] + ' die ' + parkingFees[2] + ' senken?');
       hints.push('Wenn du die Gebühr abschaffen willst: Soll ' + parkingFees[1] + ' die ' + parkingFees[2] + ' abschaffen?');
       hints.push('Wenn die Gebührenregel ausläuft und du sie verlängern willst: Soll ' + parkingFees[1] + ' die Erhebung der ' + parkingFees[2] + ' bis [Datum] verlängern?');
-      hints.push('Wenn du je nach Parkdauer unterschiedlich hohe Gebühren willst: Soll ' + parkingFees[1] + ' die ' + parkingFees[2] + ' nach [Parkdauer und Tarifen] staffeln?');
+      hints.push('Wenn du die Gebühren etwa nach Parkdauer oder Tageszeit staffeln willst: Soll ' + parkingFees[1] + ' die ' + parkingFees[2] + ' nach [Kriterium und Tarifen] staffeln?');
     } else hints.push('Soll [zuständige Stelle] [die heutige Regel] durch [deine gewünschte Änderung] ersetzen?');
   } else if (direction === 'change' && baseline) {
     add('good', 'Nach deiner Angabe', 'Dein Ausgangspunkt: «' + baseline + '». Nach deiner Einschätzung würde Ja etwas ändern und Nein diesen Zustand belassen.', 'Gleiche den Ausgangspunkt mit einer aktuellen Quelle ab.');
   } else if (!direction && today && onYes && onNo) {
-    add('warn', 'Im Beitrag beschrieben', 'Dein Beitrag nennt «' + today + '», «' + onYes + '» und «' + onNo + '».', 'Vergleiche diese drei Angaben: Beschreibt Ja die Änderung und Nein dieselbe Regel wie heute?');
+    const statedDirection = noKeepsBaseline && yesStatesChange;
+    add(statedDirection ? 'good' : 'warn',
+      statedDirection ? 'Richtung im Beitrag plausibel' : 'Im Beitrag beschrieben',
+      'Dein Beitrag nennt «' + today + '», «' + onYes + '» und «' + onNo + '».',
+      statedDirection ? 'So ist die Richtung beschrieben: Ja ändert etwas, Nein belässt den heutigen Zustand. Prüfe, ob der Titel dieselbe Änderung nennt und deine Ausgangslage zutrifft.' : 'Vergleiche diese drei Angaben: Beschreibt Ja die Änderung und Nein dieselbe Regel wie heute?');
   } else {
     add('warn', 'Abklären', baseline ? 'Du hast beschrieben, was heute gilt. Die Folgen von Ja und Nein sind noch zu klären.' : 'Aus der Formulierung allein lässt sich nicht erkennen, was heute gilt.', 'Ergänze «Heute gilt …», «Bei Ja ändert sich …» und «Bei Nein bleibt …» im Entwurf oder unter «Rückmeldung präzisieren».');
   }

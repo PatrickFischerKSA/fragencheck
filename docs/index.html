@@ -29,8 +29,11 @@
 <div class="field"><label for="body">Kontext und Quellen</label>
 <textarea id="body" name="body" rows="4" maxlength="4000"></textarea></div>
 </details>
-<div class="field"><label for="scope">Politischer Rahmen</label><select id="scope" name="scope"><option value="ch">Schweiz</option><option value="foreign">Anderes Land oder internationale Organisation</option></select>
+<details id="political-scope">
+<summary>Politischer Rahmen <span class="tag">Optional</span></summary>
+<div class="field"><label for="scope">Land oder Organisation</label><select id="scope" name="scope"><option value="ch" selected>Schweiz</option><option value="foreign">Anderes Land oder internationale Organisation</option></select>
 <p class="notice" id="foreign-note" hidden>Angaben im Beitrag: Land oder Organisation, Erläuterung des Verfahrens durch die Moderation und geltender Rechtsrahmen.</p></div>
+</details>
 <details id="outcome-check">
 <summary>Heute, Ja und Nein vergleichen <span class="tag">Optional</span></summary>
 <div class="field"><label for="baseline">Was gilt heute?</label><input id="baseline" name="baseline" maxlength="300" placeholder="Heutige Regel oder Praxis"></div>

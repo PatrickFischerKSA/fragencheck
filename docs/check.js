@@ -9,6 +9,22 @@ function normalizeState(value) {
     .trim().replace(/[.!?]+$/u, '').replace(/\s+/gu, ' ');
 }
 
+const scientificUnits = {
+  'partikel pro liter': ['Partikel pro Liter', 1],
+  'partikel pro milliliter': ['Partikel pro Liter', 1000],
+  'millimeter pro stunde': ['Millimeter pro Stunde', 1],
+  'mm/h': ['Millimeter pro Stunde', 1],
+  mj: ['Energie in Joule', 1000000],
+  kwh: ['Energie in Joule', 3600000],
+  mwh: ['Energie in Joule', 3600000000],
+  kw: ['Leistung in Watt', 1000],
+  'mg/l': ['Konzentration in Mikrogramm pro Liter', 1000],
+  'µg/l': ['Konzentration in Mikrogramm pro Liter', 1],
+  'μg/l': ['Konzentration in Mikrogramm pro Liter', 1],
+  basispunkte: ['Prozentpunkte', 0.01],
+  prozentpunkte: ['Prozentpunkte', 1]
+};
+
 function comparableState(value) {
   const state = normalizeState(value)
     .replace(/^(?:heute|bisher|derzeit|bei ja|bei nein)\s*:\s*/u, '')
@@ -16,6 +32,11 @@ function comparableState(value) {
     .replace(/\b(?:eins|zwei|drei|vier|fünf|sechs|sieben|acht|neun|zehn|elf|zwölf)\b/gu, word => String(numberWords.indexOf(word)))
     .replace(/(\d+) (?:quadratmeter|m²)(?=\s|$)/gu, '$1 m²');
   let match;
+  const quantity = state.match(/^(.+) (?:beträgt|liefert) (\d+(?:[.,]\d+)?)\s*(.+)$/u);
+  if (quantity && Object.hasOwn(scientificUnits, quantity[3])) {
+    const [dimension, factor] = scientificUnits[quantity[3]];
+    return [dimension, quantity[1], Number(quantity[2].replace(',', '.')) * factor];
+  }
   if ((match = state.match(/^(.+) beträgt (\d+(?:[.,]\d+)?)\s*(?:prozent|%)$/u))) {
     return ['Anteil in Prozent', match[1], Number(match[2].replace(',', '.'))];
   }
@@ -145,7 +166,7 @@ function checkProposal(data) {
   const bodyProcedure = body?.match(/\b(volksinitiative|initiative|motion|referendum|petition)\b/iu)?.[0];
   const petitionRecipient = body?.match(/\bpetition\b[^.!?\n]{0,120}?\ban\s+(?:den|die|das)\s+(Gemeinderat|Stadtrat|Kantonsrat|Bundesrat|Gemeindeversammlung|Regierungsrat)\b/iu)?.[1];
   const split = stem.match(/^(Soll (?:die Stadt|die Gemeinde|der Kanton|der Bund)) ([\p{Lu}][\p{L}-]*) oder ([\p{Lu}][\p{L}-]*) (bauen|finanzieren|fördern|einführen)$/u);
-  const coordinatedProjects = stem.match(/^(Soll (?:die Stadt|die Gemeinde|der Kanton|der Bund)) (.+? (?:bauen|finanzieren|fördern|schützen|renaturieren|einführen|digitalisieren|einräumen|verbieten)) (und|oder) ((?:[A-ZÄÖÜ]|(?:den|die|das|einen|eine|ein) ).+ (?:bauen|finanzieren|fördern|schützen|renaturieren|einführen|digitalisieren|einräumen|verbieten))$/u);
+  const coordinatedProjects = stem.match(/^(Soll (?:die Stadt|die Gemeinde|der Kanton|der Bund)) (.+? (?:bauen|finanzieren|fördern|schützen|renaturieren|einführen|digitalisieren|einräumen|verbieten|kartieren|sanieren|reduzieren|einsetzen)) (und|oder) ((?:[A-ZÄÖÜ]|(?:den|die|das|einen|eine|ein) |[a-zäöü]+\s+[A-ZÄÖÜ]).+ (?:bauen|finanzieren|fördern|schützen|renaturieren|einführen|digitalisieren|einräumen|verbieten|kartieren|sanieren|reduzieren|einsetzen))$/u);
   const exclusiveProjects = stem.match(/^(Soll (?:die Stadt|die Gemeinde|der Kanton|der Bund)) entweder (.+?) oder (.+?) (bauen|finanzieren|fördern|einführen)$/iu);
   const separateQuestions = text.match(/[^?]+\?/gu)?.map(question => question.trim()) || [];
   const parkingFees = stem.match(/^Soll (die Gemeinde|die Stadt|der Kanton) weiterhin (Gebühren für .+) erheben$/iu);
@@ -154,13 +175,17 @@ function checkProposal(data) {
     !/\b(?:nicht|nie|kein\w*|verboten)\b/iu.test(stem);
 
   const feasibility = stem.match(/^(?:wäre|ist) es möglich,?\s+(.+)$/iu);
+  const mathematicalFact = /^(?:ist|sind)\b.*\b(?:eigenwert\w*|matrix|matrizen|gleichmässig stetig|stetige funktion)\b/iu.test(stem);
+  const methodologicalFeasibility = /^(?:kann|können)\b.*\b(?:bestimmt|berechnet|nachgewiesen|abgeleitet) werden$/iu.test(stem);
   const factCheck = /^(?:stimmt es|trifft es zu),?\s+dass\b/iu.test(stem);
   const negativeQuestion = /^soll(?:en)?\b.*\bnicht\b/iu.test(stem);
   if (multiple || alternatives) {
     add('bad', 'Überarbeiten', 'Der Titel enthält mehrere Fragen oder stellt Alternativen zur Wahl.', 'Wähle eine konkrete Massnahme und frage, ob sie umgesetzt werden soll.');
   } else if (open) {
     add('bad', 'Überarbeiten', 'Der Titel beginnt mit einer offenen Frage.', 'Wähle eine mögliche Lösung und formuliere sie als Entscheidungsfrage: «Soll [zuständige Stelle] [konkrete Massnahme]?»');
-    if (/^wie soll der bund lebensmittelverschwendung bekämpfen$/iu.test(stem)) {
+    if (/räumliche autokorrelation/iu.test(stem) && /artenvielfalt/iu.test(stem)) {
+      hints.push('Falls du über Vorgaben für ein kantonales Monitoring diskutieren willst: Soll der Kanton bei der Schätzung der Artenvielfalt räumliche Abhängigkeiten berücksichtigen und offenlegen, wie sie die Unsicherheitsintervalle beeinflussen?');
+    } else if (/^wie soll der bund lebensmittelverschwendung bekämpfen$/iu.test(stem)) {
       hints.push('Wenn dich unverkaufte Ware im Detailhandel interessiert: Soll der Bund grosse Detailhändler verpflichten, geniessbare unverkaufte Lebensmittel zur Weitergabe anzubieten?');
       hints.push('Wenn dich Abfall in Haushalten interessiert: Soll der Bund Programme zur Vermeidung von Lebensmittelabfällen in Haushalten finanzieren?');
     } else {
@@ -169,7 +194,9 @@ function checkProposal(data) {
   } else if (feasibility) {
     add('warn', 'Entscheidung oder Machbarkeit klären', 'Die Frage erkundigt sich nach der Machbarkeit.', 'Falls über die Umsetzung entschieden werden soll, frage, ob die zuständige Stelle handeln soll.');
     hints.push('Wenn du über die Umsetzung entscheiden willst: Soll [zuständige Stelle] ' + feasibility[1].replace(/zu (\S+)$/iu, '$1').replace(/\b(ein|auf|ab|an|aus|um|vor)zu(\p{L}+)$/iu, '$1$2') + '?');
-  } else if (factCheck) {
+  } else if (methodologicalFeasibility) {
+    add('bad', 'Methodenfrage', 'Der Titel fragt, ob ein Ergebnis mit einer Methode bestimmbar ist.', 'Wenn du darüber politisch diskutieren willst, frage etwa, welche Nachweise oder Annahmen eine Behörde bei solchen Auswertungen offenlegen soll.');
+  } else if (factCheck || mathematicalFact) {
     add('bad', 'Entscheidung formulieren', 'Die Frage will eine Aussage überprüfen.', 'Nutze die Tatsache als Ausgangslage und benenne die gewünschte Änderung.');
   } else if (statement) {
     add('bad', 'Als Frage formulieren', 'Der Titel formuliert eine Forderung als Aussage.', 'Beginne mit «Soll» und stelle die Massnahme zur Entscheidung.');
@@ -241,6 +268,13 @@ function checkProposal(data) {
   const keep = stem.match(/^(Soll(?:en)?) (.+) beibehalten werden$/iu);
   const yesComparison = compareStates(baseline, yesDetail);
   const noComparison = compareStates(baseline, noDetail);
+  const rateAndInterval = [normalizeState(baseline), normalizeState(yesDetail)];
+  const measurementTiming = rateAndInterval.some(state => /\bmessfrequenz\b.*\bhz$/u.test(state)) &&
+    rateAndInterval.some(state => /\bmessintervall\b.*\bsekunden?$/u.test(state));
+  const [todayMeasure] = comparableState(baseline);
+  const [yesMeasure] = comparableState(yesDetail);
+  const energyAndPower = [todayMeasure, yesMeasure].includes('Energie in Joule') &&
+    [todayMeasure, yesMeasure].includes('Leistung in Watt');
   const sameYesText = yesComparison.same;
   const sameNoText = noComparison.same;
   const freeWifi = /^das wlan im (.+) ist kostenlos$/u;
@@ -276,6 +310,10 @@ function checkProposal(data) {
         ? 'Du hast bei Nein «Anders als heute» ausgewählt, beschreibst aber denselben Zustand wie heute.'
         : (noComparison.different ? 'Die Angaben zu Heute und Nein unterscheiden sich (' + noComparison.different + ').' : 'Du hast bei Nein «Anders als heute» ausgewählt.') + (noDetail ? ' Bei Nein würde gelten: «' + noDetail + '».' : ''),
       'Vergleiche die Folgen eines Nein mit heute und korrigiere die Auswahl oder den Entwurf.');
+    } else if (energyAndPower) {
+      add('warn', 'Leistung und Energie unterscheiden', 'Die Angaben vergleichen Leistung (kW) mit Energie (kWh).', 'Nenne für Heute und Ja dieselbe Messgrösse. Wenn die Energiemenge gemeint ist, gib auch den Zeitraum an.');
+    } else if (measurementTiming) {
+      add('warn', 'Messvorgang abgleichen', 'Heute und Ja beschreiben eine Frequenz beziehungsweise ein Zeitintervall.', 'Prüfe, ob beide Angaben denselben Messvorgang und gleichmässige Messabstände meinen. Nur dann entspricht das Intervall dem Kehrwert der Frequenz.');
     } else if (yesOutcome === 'different' && noOutcome === 'same' && baseline && yesDetail) {
       const needsNoReview = noDetail && !sameNoText;
       const needsTitleReview = negative || continued;

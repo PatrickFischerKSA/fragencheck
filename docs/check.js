@@ -19,7 +19,10 @@ function checkProposal(data) {
   const negation = /\b(?:nicht|kein\w*|never|not|against|contre|verbot|verbiet\w*|abschaff\w*|ablehn\w*)\b/iu.test(stem);
   const emrkExit = /\b(?:EMRK|ECHR|CEDH|Menschenrechtskonvention)\b/iu.test(stem) && /kündig|austret|austritt|rückgängig|withdraw|dénonc/iu.test(stem);
   const hints = [];
-  const choice = /\b(?:oder|or|ou)\b/iu.test(stem);
+  const choice = /\b(?:oder|or|ou)\b/iu.test(stem.replace(/,?\s+(?:oder nicht|or not|ou non)$/iu, ''));
+  const statement = stem.match(/^(Die (?:Stadt|Gemeinde|Schweiz)|Der (?:Kanton|Bund))\s+(soll|sollte)\s+(.+)$/u);
+  const factQuestion = /^(?:ist|sind|hat|haben|gibt)\b.*\b(?:offen|geöffnet|geschlossen|vorhanden|bereits)\b/iu.test(stem) &&
+    !/\b(?:soll\w*|sinnvoll|notwendig|erforderlich)\b/iu.test(stem);
   const continued = /\b(?:weiterhin|wie bisher|auch künftig)\b/iu.test(stem);
   const classDecision = /^(?:soll\w*|muss)\s+(?:unsere\s+)?(?:klassengruppe|klassenchat|klasse)\b/iu.test(stem) &&
     /\b(?:namen|umbenenn\w*)\b/iu.test(stem);
@@ -33,16 +36,23 @@ function checkProposal(data) {
   const yesStatesChange = !/\b(?:nicht|nie|unverändert|wie bisher)\b/iu.test(onYes || '') && /^bei ja\b.*\b(?:neu|zusätzlich|erstmals|auch am|auch an|auch sonntags|wird abgeschafft)\b/iu.test(onYes || '');
   // Compare the same service and day before treating "auch" as a change.
   const sundayServiceQuestion = /\b(?:ortsbus|bus)\b.*\b(?:am sonntag|sonntags)\s+fahren lassen$/iu.test(stem);
-  const sundayServiceNow = /^(?:heute|bisher|derzeit)\s+fährt\s+(?:er|der (?:ortsbus|bus))\s+(?:bereits\s+|schon\s+|auch\s+)?(?:am sonntag|sonntags)$/iu;
+  const sundayServiceNow = /^(?:(?:heute|bisher|derzeit)\s+fährt\s+(?:er|der (?:ortsbus|bus))|der (?:ortsbus|bus)\s+fährt)\s+(?:(?:bereits|schon|auch|heute|derzeit)\s+)*(?:am sonntag|sonntags)$/iu;
   const sundayServiceAtYes = /^bei ja\s+fährt\s+(?:er|der (?:ortsbus|bus))\s+(?:auch\s+)?(?:am sonntag|sonntags)$/iu;
   const sundayServiceAlreadyRuns = sundayServiceQuestion &&
-    sundayServiceNow.test(today || '') && sundayServiceAtYes.test(onYes || '');
+    sundayServiceAtYes.test(onYes || '') &&
+    (body || '').split(/[.!?\n]/u).some(sentence => sundayServiceNow.test(sentence.trim()));
+  const libraryOpeningQuestion = /\bbibliothek\b.*\b(?:am montag|montags)\s+öffnen$/iu.test(stem);
+  const libraryAlreadyOpen = libraryOpeningQuestion &&
+    /^(?:(?:heute|bisher|derzeit) ist die bibliothek|die bibliothek ist) (?:bereits |schon )?(?:am montag|montags) (?:(?:bereits|schon) )?(?:offen|geöffnet)$/iu.test(today || '') &&
+    /^bei ja öffnet (?:sie|die bibliothek) (?:auch )?(?:am montag|montags)$/iu.test(onYes || '');
   const bodyProcedure = body?.match(/\b(volksinitiative|initiative|motion|referendum|petition)\b/iu)?.[0];
   const petitionRecipient = body?.match(/\bpetition\b[^.!?\n]{0,120}?\ban\s+(?:den|die|das)\s+(Gemeinderat|Stadtrat|Kantonsrat|Bundesrat|Gemeindeversammlung)\b/iu)?.[1];
   const split = stem.match(/^(Soll (?:die Stadt|die Gemeinde|der Kanton|der Bund)) ([\p{Lu}][\p{L}-]*) oder ([\p{Lu}][\p{L}-]*) (bauen|finanzieren|fördern|einführen)$/u);
+  const exclusiveProjects = stem.match(/^(Soll (?:die Stadt|die Gemeinde|der Kanton|der Bund)) entweder (.+?) oder (.+?) (bauen|finanzieren|fördern|einführen)$/iu);
   const separateQuestions = text.match(/[^?]+\?/gu)?.map(question => question.trim()) || [];
   const parkingFees = stem.match(/^Soll (die Gemeinde|die Stadt|der Kanton) weiterhin (Gebühren für .+) erheben$/iu);
-  const allowsTorture = /^(?:soll\w*|darf|dürfen)\b.*\bfoltern(?:\s+dürfen)?$/iu.test(stem) &&
+  const allowsTorture = (/^(?:soll\w*|darf|dürfen)\b.*\bfoltern(?:\s+dürfen)?$/iu.test(stem) ||
+    /^(?:soll|darf) folter\b.*\berlaubt (?:werden|sein)$/iu.test(stem)) &&
     !/\b(?:nicht|nie|kein\w*|verboten)\b/iu.test(stem);
 
   if (multiple || alternatives) {
@@ -55,6 +65,11 @@ function checkProposal(data) {
     } else {
       hints.push('Wenn du eine bestimmte Änderung diskutieren willst: Soll [zuständige Stelle] [deine konkrete Massnahme] umsetzen?');
     }
+  } else if (statement) {
+    add('bad', 'Als Frage formulieren', 'Der Titel formuliert eine Forderung als Aussage.', 'Beginne mit «Soll» und stelle die Massnahme zur Entscheidung.');
+    hints.push('Wenn diese Massnahme zur Entscheidung stehen soll: Soll ' + statement[1][0].toLowerCase() + statement[1].slice(1) + ' ' + statement[3] + '?');
+  } else if (factQuestion) {
+    add('bad', 'Entscheidung formulieren', 'Der Titel fragt nach dem heutigen Zustand.', 'Nutze die Antwort als Ausgangslage. Formuliere im Titel, welche konkrete Änderung zur Entscheidung stehen soll.');
   } else if (split) {
     add('warn', 'Entscheidung präzisieren', 'Die Frage lässt offen, ob du zwischen zwei Vorhaben wählen oder beide gemeinsam zur Abstimmung stellen willst.', 'Wenn dieselbe Fläche zur Debatte steht, nenne den Ort und frage nach genau einer Nutzung gegenüber dem heutigen Zustand.');
   } else if (choice) {
@@ -70,7 +85,12 @@ function checkProposal(data) {
     add('warn', 'Abklären', 'Das Tool erkennt noch keine eindeutige Ja/Nein-Form.', 'Prüfe, ob der Titel als Frage funktioniert. Verwende etwa «Soll …?», «Should …?» oder «Faut-il … ?».');
   }
 
-  if (split && !multiple) {
+  if (exclusiveProjects && !multiple) {
+    const [, actor, first, second, action] = exclusiveProjects;
+    for (const project of [first, second]) {
+      hints.push('Wenn du dieses Vorhaben einzeln prüfen willst: ' + actor + ' ' + project + ' ' + action + '?');
+    }
+  } else if (split && !multiple) {
     hints.push('Wenn du das erste Vorhaben einzeln prüfen willst: ' + split[1] + ' ' + split[2] + ' ' + split[4] + '?');
     hints.push('Wenn du das zweite Vorhaben einzeln prüfen willst: ' + split[1] + ' ' + split[3] + ' ' + split[4] + '?');
     hints.push('Wenn beide Vorhaben als Paket gemeint sind: ' + split[1] + ' ' + split[2] + ' und ' + split[3] + ' ' + split[4] + '?');
@@ -101,10 +121,10 @@ function checkProposal(data) {
     if (alternative) hints.push('Wenn der erste Teil beschreibt, was heute gilt: Soll ' + alternative[1] + ' ' + alternative[2].replace(/\bdort\b/iu, 'auf [genauer Ort]') + '?');
   }
   const keep = stem.match(/^(Soll(?:en)?) (.+) beibehalten werden$/iu);
-  if (sundayServiceAlreadyRuns) {
+  if (sundayServiceAlreadyRuns || libraryAlreadyOpen) {
     add('bad', 'Ja bestätigt den heutigen Zustand',
-      'Laut deinem Beitrag fährt der Bus heute schon sonntags. Die Ja-Option beschreibt denselben Betrieb.',
-      'Wenn du eine Änderung des Sonntagsangebots meinst, nenne sie im Titel und im Beitrag. Beschreibe bei Nein den heutigen Fahrplan.');
+      sundayServiceAlreadyRuns ? 'Laut deinem Beitrag fährt der Bus heute schon sonntags. Die Ja-Option beschreibt denselben Betrieb.' : 'Laut deinem Beitrag ist die Bibliothek montags bereits geöffnet. Die Ja-Option beschreibt dieselbe Öffnung.',
+      'Wenn du das Angebot ändern willst, nenne die konkrete Änderung im Titel und im Beitrag. Beschreibe bei Nein den heutigen Zustand.');
   } else if (direction === 'keep' || negative || (continued && direction !== 'change')) {
     const tentative = continued && !negative && direction !== 'keep';
     add(tentative ? 'warn' : 'bad', tentative ? 'Richtung prüfen' : 'Überarbeiten',

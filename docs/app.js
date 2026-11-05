@@ -42,18 +42,19 @@ function renderCheck() {
     heading.textContent = row.name;
     const feedback = document.createElement('p');
     feedback.textContent = row.feedback;
-    const next = document.createElement('p');
-    const action = document.createElement('b');
-    action.textContent = 'Nächster Schritt: ';
-    next.append(action, row.next);
-    item.append(status, heading, feedback, next);
+    item.append(status, heading, feedback);
+    if (row.tone !== 'good' && row.next) {
+      const next = document.createElement('p');
+      next.textContent = row.next;
+      item.append(next);
+    }
     list.append(item);
   }
   byId('status').textContent = result.some(row => row.tone === 'bad')
-    ? 'Überarbeite zuerst die markierten Punkte.'
+    ? 'Überarbeitung empfohlen.'
     : result.some(row => row.tone === 'warn')
-      ? 'Einige Punkte brauchen noch deine Abklärung.'
-      : 'Für alle vier Regeln liegen Anhaltspunkte vor. Prüfe die offenen Details anhand deiner Quellen.';
+      ? 'Einzelne Punkte sind offen.'
+      : 'Formal plausibel anhand der Angaben.';
 }
 
 form.addEventListener('input', () => {

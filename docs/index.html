@@ -13,21 +13,21 @@
 <header class="mast"><div class="shell mast-inner"><span class="brand"><span class="mark" aria-hidden="true">?</span> Debattenwerkstatt</span></div></header>
 <main class="shell">
 <section class="hero" aria-labelledby="title">
-<div><p class="eyebrow">THEMENFINDUNG / ZUTEILUNGSPHASE</p><h1 id="title">Was wollen wir<br> <em>debattieren?</em></h1><p class="intro">Entwirf eine politische Entscheidungsfrage, prüfe ihre Form anhand der vier Regeln und übernimm deinen Vorschlag ins Klassenforum.</p></div>
+<div><p class="eyebrow">THEMENFINDUNG / ZUTEILUNGSPHASE</p><h1 id="title">Was wollen wir<br> <em>debattieren?</em></h1><p class="intro">Schnellcheck für politische Entscheidungsfragen.</p></div>
 <aside class="brief" aria-label="Leitgedanke"><span class="eyebrow">DIE RICHTUNG</span><div><strong>Ja</strong><span>Etwas ändert sich.</span></div><div><strong>Nein</strong><span>Es bleibt, wie es heute ist.</span></div></aside>
 </section>
 <div class="workspace">
 <section class="panel composer" aria-labelledby="compose">
 <p class="eyebrow"><span class="step">01</span> ENTWURF</p>
-<h2 id="compose">Dein Themenvorschlag</h2>
-<p class="notice"><strong>Der Fragencheck prüft nur die Frageform.</strong> Er kann keine fundierte fachliche Rückmeldung zum Inhalt deiner Frage geben.</p>
+<h2 id="compose">Themenvorschlag</h2>
+<p class="notice"><strong>Der Fragencheck prüft nur die Frageform.</strong> Eine fundierte fachliche Rückmeldung ist damit nicht möglich.</p>
 <form id="proposal">
-<div class="field"><label for="title-input">Thementitel <span class="tag">Pflichtfeld</span></label><p id="title-hint" class="hint">Die genaue Formulierung der geplanten Fragestellung.</p>
-<input id="title-input" name="title" maxlength="300" placeholder="Soll …?" aria-describedby="title-hint" required></div>
-<div class="field"><label for="body">Beitrag <span class="tag">Optional</span></label><p id="body-hint" class="hint">Eingrenzungen, Recherchehinweise oder warum das Thema wichtig ist.</p>
-<textarea id="body" name="body" rows="4" maxlength="4000" aria-describedby="body-hint" placeholder="Hier kannst du deine Frage erläutern …"></textarea></div>
+<div class="field"><label for="title-input">Thementitel <span class="tag">Pflichtfeld</span></label>
+<input id="title-input" name="title" maxlength="300" placeholder="Soll …?" required></div>
+<div class="field"><label for="body">Beitrag <span class="tag">Optional</span></label><p id="body-hint" class="hint">Kontext und Quellen</p>
+<textarea id="body" name="body" rows="4" maxlength="4000" aria-describedby="body-hint"></textarea></div>
 <div class="field"><label for="scope">Politischer Rahmen</label><select id="scope" name="scope"><option value="ch">Schweiz</option><option value="foreign">Anderes Land oder internationale Organisation</option></select>
-<p class="notice" id="foreign-note" hidden>Besonders für Fremdsprachenfächer möglich. Mache im Beitrag transparent, dass die Moderation das politische Verfahren dem Publikum erklärt und beide Seiten den geltenden Rechtsrahmen beachten. Details können nach der Themenwahl folgen.</p></div>
+<p class="notice" id="foreign-note" hidden>Angaben im Beitrag: Land oder Organisation, Erläuterung des Verfahrens durch die Moderation und geltender Rechtsrahmen.</p></div>
 <details id="outcome-check">
 <summary>Heute, Ja und Nein vergleichen <span class="tag">Optional</span></summary>
 <div class="field"><label for="baseline">Was gilt heute?</label><input id="baseline" name="baseline" maxlength="300" placeholder="Heutige Regel oder Praxis"></div>
@@ -41,7 +41,7 @@
 <details id="context"><summary>Politischen Weg und Argumente ergänzen <span class="tag">Optional</span></summary>
 <div class="field"><label for="route">Politischer Weg und zuständige Stelle</label><input id="route" name="route" maxlength="300" placeholder="Z. B. Petition an den Gemeinderat"></div>
 <div class="arguments"><div class="field"><label for="pro">Ein Pro-Argument</label><textarea id="pro" name="pro" maxlength="500" rows="2"></textarea></div><div class="field"><label for="contra">Ein Contra-Argument</label><textarea id="contra" name="contra" maxlength="500" rows="2"></textarea></div></div>
-<div class="field"><label for="rights">Können beide Seiten die geltenden Rechte respektieren?</label><select id="rights" name="rights"><option value="">Noch nicht abgeklärt</option><option value="yes">Ja, nach meiner Recherche</option><option value="unclear">Unklar, ein Recht könnte betroffen sein</option><option value="no">Nein, mindestens eine Position setzt einen Verstoss voraus</option></select></div>
+<div class="field"><label for="rights">Grund- und Menschenrechte</label><select id="rights" name="rights"><option value="">Noch nicht abgeklärt</option><option value="yes">Ja, nach meiner Recherche</option><option value="unclear">Unklar, ein Recht könnte betroffen sein</option><option value="no">Nein, mindestens eine Position setzt einen Verstoss voraus</option></select></div>
 <label class="checkline" id="foreign-confirm" hidden><input type="checkbox" name="foreignConfirmed"> Mein Beitrag nennt Land oder Organisation, die Aufgabe der Moderation und den geltenden Rechtsrahmen.</label>
 </details>
 <div class="actions"><button type="submit" class="primary">Frage prüfen <span aria-hidden="true">→</span></button><button type="button" id="example" class="quiet">Beispiel laden</button></div>
@@ -50,24 +50,24 @@
 <section class="panel feedback" aria-labelledby="feedback-title">
 <p class="eyebrow"><span class="step">02</span> RÜCKMELDUNG</p>
 <h2 id="feedback-title" tabindex="-1">Der Vier-Punkte-Check</h2>
-<p id="status" role="status">Hier erhältst du Hinweise und konkrete Vorschläge zur Überarbeitung.</p>
+<p id="status" role="status"></p>
 <ol id="criteria">
-<li><strong>Entscheidungsfrage</strong><p>Kann man mit Ja oder Nein antworten?</p></li>
-<li><strong>Ja verändert etwas</strong><p>Bleibt bei einem Nein der heutige Zustand bestehen?</p></li>
-<li><strong>Politischer Weg</strong><p>Wie und durch wen lässt sich die Frage politisch beeinflussen?</p></li>
-<li><strong>Grund- und Menschenrechte</strong><p>Haben beide Seiten genug Spielraum für Argumente, die diese Rechte respektieren?</p></li>
+<li><strong>Entscheidungsfrage</strong><p>Mit Ja oder Nein beantwortbar.</p></li>
+<li><strong>Ja verändert etwas</strong><p>Ja ändert die Lage. Nein belässt sie.</p></li>
+<li><strong>Politischer Weg</strong><p>Verfahren und zuständige Stelle.</p></li>
+<li><strong>Grund- und Menschenrechte</strong><p>Spielraum für beide Positionen.</p></li>
 </ol>
-<div id="revision" class="revision" hidden><h3>Formulierungshinweise</h3><p>Diese Varianten sind Hinweise, keine Lösungen. Prüfe, welche Variante zu deinem Anliegen passt, und formuliere die Frage in deinen eigenen Worten.</p><ul id="rewrite"></ul></div>
-<p class="footnote">Die Rückmeldung betrifft nur die Frageform. Hinweise zu Verfahren, Rechtslage und Argumenten zeigen dir, was du fachlich mit Quellen abklären solltest.</p>
+<div id="revision" class="revision" hidden><h3>Formulierungshinweise</h3><p>Formulierungsvarianten zur Orientierung.</p><ul id="rewrite"></ul></div>
+
 </section>
 </div>
 <section class="panel handoff" aria-labelledby="share-title">
-<div><p class="eyebrow"><span class="step">03</span> KLASSENFORUM</p><h2 id="share-title">Vorschlag übernehmen</h2><p>Kopiere Thementitel und Beitrag in die entsprechenden Felder im Klassenforum. Dort werden die Vorschläge für die Zuteilungsphase gesammelt.</p></div>
+<div><p class="eyebrow"><span class="step">03</span> KLASSENFORUM</p><h2 id="share-title">Vorschlag übernehmen</h2></div>
 <div><div class="copy-actions"><button id="copy-title" type="button" class="secondary">Thementitel kopieren</button><button id="copy-body" type="button" class="secondary">Beitrag kopieren</button></div><p id="copy-status" role="status"></p><textarea id="copy-fallback" aria-label="Text zum manuellen Kopieren" readonly hidden></textarea></div>
 </section>
 <details class="rules"><summary>Regeln und Recherchehilfen</summary>
-<p>Die Frage soll über ein bestehendes politisches Verfahren beeinflussbar sein, etwa über eine Initiative, eine Motion, ein Referendum oder eine Petition. Prüfe, welcher Weg auf der betreffenden Ebene und für die gewünschte Änderung passt.</p>
-<p>Die Wiedereinführung der Todesstrafe in der Schweiz ist nach den Klassenregeln kein zulässiges Thema: Art. 10 Abs. 1 der Bundesverfassung und Protokoll Nr. 13 zur EMRK verbieten sie. Eine Frage zur Kündigung der EMRK ist dagegen grundsätzlich als Debattenthema denkbar; auch die Pro-Seite muss die verfassungsrechtlichen Grundrechte respektieren.</p>
+<p>Mögliche Verfahren sind Initiative, Motion, Referendum oder Petition. Massgebend ist die Zuständigkeit.</p>
+<p>Beispiele zum Rechtsrahmen stehen in der Bundesverfassung und der EMRK.</p>
 <ul><li><a href="https://www.ch.ch/de/politisches-system/funktionsweise-und-organisation/wie-entsteht-ein-gesetz/">ch.ch: Wie entsteht ein Gesetz?</a></li><li><a href="https://www.fedlex.admin.ch/eli/cc/1999/404/de">Fedlex: Bundesverfassung</a></li><li><a href="https://www.fedlex.admin.ch/eli/oc/2013/267/de">Fedlex: Protokoll Nr. 13 zur EMRK</a></li></ul>
 </details>
 <noscript><p class="notice">Aktiviere JavaScript, damit der Fragencheck und die Kopierfunktionen verfügbar sind.</p></noscript>

@@ -180,9 +180,9 @@ function checkProposal(data) {
   const factCheck = /^(?:stimmt es|trifft es zu),?\s+dass\b/iu.test(stem);
   const negativeQuestion = /^soll(?:en)?\b.*\bnicht\b/iu.test(stem);
   if (multiple || alternatives) {
-    add('bad', 'Überarbeiten', 'Der Titel enthält mehrere Fragen oder stellt Alternativen zur Wahl.', 'Wähle eine konkrete Massnahme und frage, ob sie umgesetzt werden soll.');
+    add('bad', 'Überarbeiten', 'Mehrere Fragen oder Alternativen im Titel.', 'Eine Massnahme pro Entscheidungsfrage.');
   } else if (open) {
-    add('bad', 'Überarbeiten', 'Der Titel beginnt mit einer offenen Frage.', 'Wähle eine mögliche Lösung und formuliere sie als Entscheidungsfrage: «Soll [zuständige Stelle] [konkrete Massnahme]?»');
+    add('bad', 'Überarbeiten', 'Offene Frage.', 'Eine konkrete Massnahme zur Entscheidung stellen.');
     if (/räumliche autokorrelation/iu.test(stem) && /artenvielfalt/iu.test(stem)) {
       hints.push('Falls du über Vorgaben für ein kantonales Monitoring diskutieren willst: Soll der Kanton bei der Schätzung der Artenvielfalt räumliche Abhängigkeiten berücksichtigen und offenlegen, wie sie die Unsicherheitsintervalle beeinflussen?');
     } else if (/^wie soll der bund lebensmittelverschwendung bekämpfen$/iu.test(stem)) {
@@ -216,28 +216,28 @@ function checkProposal(data) {
     add('warn', 'Ja und Nein eindeutig formulieren', 'Die Verneinung im Titel kann die Bedeutung eines Ja missverständlich machen.', 'Beschreibe zuerst, welche Änderung bei Ja gelten soll, und formuliere genau diese Änderung im Titel.');
   } else if (yesNo && stem.split(/\s+/).length >= 3) {
     if (!text.endsWith('?')) {
-      add('bad', 'Überarbeiten', 'Der Satzanfang passt zu einer Entscheidungsfrage. Das Fragezeichen fehlt.', 'Schliesse den Titel mit einem Fragezeichen ab.');
+      add('bad', 'Überarbeiten', 'Fragezeichen fehlt.', '');
       hints.push(stem + '?');
     } else {
-      add('good', 'Formal plausibel', 'Der Satzanfang passt zu einer Ja/Nein-Frage.', 'Lies beide Antworten laut: Beziehen sich Ja und Nein eindeutig auf dieselbe Massnahme?');
+      add('good', 'Formal plausibel', 'Als Ja/Nein-Frage formuliert.', 'Lies beide Antworten laut: Beziehen sich Ja und Nein eindeutig auf dieselbe Massnahme?');
     }
   } else {
-    add('warn', 'Abklären', 'Das Tool erkennt noch keine eindeutige Ja/Nein-Form.', 'Prüfe, ob der Titel als Frage funktioniert. Verwende etwa «Soll …?», «Should …?» oder «Faut-il … ?».');
+    add('warn', 'Abklären', 'Ja/Nein-Form unklar.', 'Möglicher Einstieg «Soll …?».');
   }
 
   if (coordinatedProjects && !multiple && !open) {
     const [, actor, first, , second] = coordinatedProjects;
     for (const project of [first, second]) {
-      hints.push('Wenn du dieses Vorhaben einzeln prüfen willst: ' + actor + ' ' + project + '?');
+      hints.push('Als Einzelfrage: ' + actor + ' ' + project + '?');
     }
   } else if (exclusiveProjects && !multiple) {
     const [, actor, first, second, action] = exclusiveProjects;
     for (const project of [first, second]) {
-      hints.push('Wenn du dieses Vorhaben einzeln prüfen willst: ' + actor + ' ' + project + ' ' + action + '?');
+      hints.push('Als Einzelfrage: ' + actor + ' ' + project + ' ' + action + '?');
     }
   } else if (split && !multiple) {
-    hints.push('Wenn du das erste Vorhaben einzeln prüfen willst: ' + split[1] + ' ' + split[2] + ' ' + split[4] + '?');
-    hints.push('Wenn du das zweite Vorhaben einzeln prüfen willst: ' + split[1] + ' ' + split[3] + ' ' + split[4] + '?');
+    hints.push('Als Einzelfrage: ' + split[1] + ' ' + split[2] + ' ' + split[4] + '?');
+    hints.push('Als Einzelfrage: ' + split[1] + ' ' + split[3] + ' ' + split[4] + '?');
     hints.push('Wenn beide Vorhaben als Paket gemeint sind: ' + split[1] + ' ' + split[2] + ' und ' + split[3] + ' ' + split[4] + '?');
     if (split[4] === 'bauen') {
       for (const use of [split[2], split[3]]) {
@@ -249,7 +249,7 @@ function checkProposal(data) {
     const secondPronoun = /^der /iu.test(firstActor || '') ? 'er' : 'sie';
     hints.push(...separateQuestions.map((question, index) => {
       const pronoun = question.match(/^Soll (er|sie) /iu)?.[1].toLowerCase();
-      if (!pronoun) return 'Wenn du dieses Vorhaben einzeln prüfen willst: ' + question;
+      if (!pronoun) return 'Als Einzelfrage: ' + question;
       const actor = index === 1 && firstActor && pronoun === secondPronoun ? firstActor : '[zuständige Stelle]';
       return 'Wenn dieselbe Stelle zuständig ist: ' + question.replace(/^Soll (?:er|sie) /iu, 'Soll ' + actor + ' ');
     }));
@@ -327,7 +327,7 @@ function checkProposal(data) {
           : needsYesReview ? 'Du hast «Anders als heute» ausgewählt. Vergleiche selbst, was sich konkret ändert, etwa Preis, Zeiten oder Personenkreis.'
           : 'Prüfe, ob der Titel genau die bei Ja beschriebene Änderung zur Entscheidung stellt.');
     } else {
-      add('warn', 'Vergleich ergänzen', 'Die Angaben zum Vergleich sind noch unvollständig.', 'Beschreibe den heutigen Zustand, wähle für Ja und Nein «Wie heute» oder «Anders als heute» und benenne die Änderung bei Ja.');
+      add('warn', 'Vergleich ergänzen', 'Vergleich unvollständig.', 'Ausgangslage, Ja-Änderung und Nein-Folge ergänzen.');
     }
   } else if (direction === 'keep' || negative || (continued && direction !== 'change')) {
     const tentative = continued && !negative && direction !== 'keep';
@@ -348,11 +348,11 @@ function checkProposal(data) {
       'Dein Beitrag nennt «' + today + '», «' + onYes + '» und «' + onNo + '».',
       'Für einen genaueren Abgleich steht der optionale Vergleich von Heute, Ja und Nein zur Verfügung.');
   } else {
-    add('warn', 'Abklären', baseline ? 'Du hast beschrieben, was heute gilt. Die Folgen von Ja und Nein sind noch zu klären.' : 'Aus der Formulierung allein lässt sich nicht erkennen, was heute gilt.', 'Der optionale Vergleich von Heute, Ja und Nein kann die Rückmeldung präzisieren.');
+    add('warn', 'Abklären', baseline ? 'Du hast beschrieben, was heute gilt. Die Folgen von Ja und Nein sind noch zu klären.' : 'Ausgangslage offen.', 'Optionaler Abgleich unter «Heute, Ja und Nein vergleichen».');
   }
 
   if (foreign && (!body || !foreignConfirmed)) {
-    add('warn', 'Beitrag ergänzen', 'Der Auslandsbezug braucht eine Erklärung im Beitrag.', 'Nenne Land oder Organisation. Halte fest, dass die Moderation das Verfahren erklärt und beide Seiten den geltenden Rechtsrahmen beachten. Die Details können nach der Themenwahl folgen.');
+    add('warn', 'Beitrag ergänzen', 'Angaben zum Auslandsbezug fehlen.', 'Land oder Organisation, Verfahren und Rechtsrahmen im Beitrag angeben.');
   } else if (!foreign && federalMotionToLocalAuthority) {
     add('warn', 'Zuständigkeit prüfen', 'Eine Motion im eidgenössischen Parlament richtet sich an den Bundesrat. Du nennst eine Gemeinde- oder Kantonsbehörde als Adressatin.', 'Prüfe das Verfahren auf der Ebene der zuständigen Stelle. Eine Petition kann ein möglicher Weg sein.');
   } else if (!foreign && classDecision) {
@@ -366,7 +366,7 @@ function checkProposal(data) {
   } else if (bodyProcedure) {
     add('warn', 'Verfahren im Beitrag erwähnt', 'Du erwähnst «' + bodyProcedure + '» im Beitrag.', 'Prüfe, welche Stelle zuständig ist und wie dieses Verfahren die gewünschte Änderung anstossen könnte.');
   } else {
-    add('warn', 'Abklären', 'Ein Verfahren und eine zuständige Stelle fehlen in den Prüfangaben.', foreign ? 'Recherchiere das konkrete Verfahren im gewählten Land oder in der Organisation.' : 'Kläre zuerst Bund, Kanton oder Gemeinde. Prüfe dann z. B. Volksinitiative, Motion über ein Parlamentsmitglied, Referendum zu einer konkreten Vorlage oder Petition an die zuständige Behörde.');
+    add('warn', 'Abklären', 'Verfahren und Zuständigkeit offen.', foreign ? 'Recherchiere das konkrete Verfahren im gewählten Land oder in der Organisation.' : 'Mögliche Verfahren stehen unter «Regeln und Recherchehilfen».');
   }
 
   if (!foreign && death && introduce && !negation) {
@@ -386,7 +386,7 @@ function checkProposal(data) {
   } else if (pro && contra && pro.trim().toLowerCase() !== contra.trim().toLowerCase() && rights === 'yes') {
     add('good', 'Nach deiner Angabe', 'Du hast je ein Pro- und Contra-Argument skizziert und den Rechtsrahmen nach eigener Angabe geprüft.', 'Suche je ein weiteres unabhängiges Argument. Halte die einschlägigen Bestimmungen oder Quellen fest.');
   } else {
-    add('warn', 'Abklären', rights === 'unclear' ? 'Nach deiner Einschätzung könnte ein Recht betroffen sein.' : 'Es ist noch offen, ob beide Seiten genügend grundrechtskonformen Spielraum haben.', 'Notiere je ein konkretes Pro- und Contra-Argument. Prüfe dann, welche Grund- oder Menschenrechte berührt sind und ob beide Positionen diese respektieren.');
+    add('warn', 'Abklären', rights === 'unclear' ? 'Nach deiner Einschätzung könnte ein Recht betroffen sein.' : 'Spielraum für beide Positionen offen.', 'Optionaler Abgleich anhand je eines Pro- und Contra-Arguments.');
   }
   return { result, hints };
 }

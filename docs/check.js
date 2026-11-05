@@ -11,15 +11,17 @@ function normalizeState(value) {
 
 function comparableState(value) {
   const state = normalizeState(value)
+    .replace(/^(?:heute|bisher|derzeit|bei ja|bei nein)\s*:\s*/u, '')
+    .replace(/(?<=\d)['’](?=\d{3}(?:\D|$))/gu, '')
     .replace(/\b(?:eins|zwei|drei|vier|fünf|sechs|sieben|acht|neun|zehn|elf|zwölf)\b/gu, word => String(numberWords.indexOf(word)))
     .replace(/(\d+) (?:quadratmeter|m²)(?=\s|$)/gu, '$1 m²');
   let match;
-  if ((match = state.match(/^der ([\p{L}-]*abstand) beträgt (\d+(?:[.,]\d+)?) (kilometer|km|meter|m)$/u))) {
+  if ((match = state.match(/^der ([\p{L}-]*abstand) (?:beträgt|liegt bei|muss) (\d+(?:[.,]\d+)?)\s*(kilometer|km|meter|m)(?: betragen)?$/u))) {
     const metres = Number(match[2].replace(',', '.')) * (/^k/u.test(match[3]) ? 1000 : 1);
     return ['Abstand in Metern', match[1], metres];
   }
-  if ((match = state.match(/^(?:der|die|das) (.+) ist für alle frei zugänglich$/u)) ||
-      (match = state.match(/^alle dürfen (?:den|die|das) (.+) benutzen$/u))) {
+  if ((match = state.match(/^(?:der|die|das) (.+) ist (?:für alle (?:frei )?zugänglich|frei zugänglich für alle)$/u)) ||
+      (match = state.match(/^alle (?:dürfen|können) (?:den|die|das) (.+) (?:benutzen|nutzen|betreten)$/u))) {
     return ['Öffentlicher Zugang', match[1]];
   }
   if ((match = state.match(/^(.+) kostet (?:chf )?(\d+(?:[.,]\d{1,2})?)(?: (franken|chf))?$/u)) &&
@@ -48,8 +50,8 @@ function comparableState(value) {
   if ((match = state.match(/^(?:die ausleihfrist beträgt|ausgeliehene bücher dürfen) (\d+) (tage|wochen)(?: behalten werden)?$/u))) {
     return ['Ausleihfrist in Tagen', Number(match[1]) * (match[2] === 'wochen' ? 7 : 1)];
   }
-  if ((match = state.match(/^die ([\p{L}-]*frist) beträgt (\d+) (tage|wochen)$/u))) {
-    return ['Frist in Tagen', match[1], Number(match[2]) * (match[3] === 'wochen' ? 7 : 1)];
+  if ((match = state.match(/^die ([\p{L}-]*frist) (?:beträgt|dauert|liegt bei) (\d+|eine[nm]?) (tag|tage|tagen|woche|wochen)$/u))) {
+    return ['Frist in Tagen', match[1], (/^[0-9]/u.test(match[2]) ? Number(match[2]) : 1) * (match[3].startsWith('woche') ? 7 : 1)];
   }
   if ((match = state.match(/^auf (.+) (?:gilt eine höchstgeschwindigkeit von|darf höchstens) (\d+) km\/h(?: gefahren werden)?$/u))) {
     return ['Tempolimit', match[1], Number(match[2])];

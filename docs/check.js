@@ -14,6 +14,14 @@ function comparableState(value) {
     .replace(/\b(?:eins|zwei|drei|vier|fünf|sechs|sieben|acht|neun|zehn|elf|zwölf)\b/gu, word => String(numberWords.indexOf(word)))
     .replace(/(\d+) (?:quadratmeter|m²)(?=\s|$)/gu, '$1 m²');
   let match;
+  if ((match = state.match(/^(.+) kostet (?:chf )?(\d+(?:[.,]\d{1,2})?)(?: (franken|chf))?$/u)) &&
+      (match[3] || state.includes(' kostet chf '))) {
+    return ['Preis in Franken', match[1], Number(match[2].replace(',', '.'))];
+  }
+  if ((match = state.match(/^(.+) schliesst um (\d{1,2})(?:[.:](\d{2}))? uhr$/u)) &&
+      Number(match[2]) < 24 && Number(match[3] || 0) < 60) {
+    return ['Schliesszeit', match[1], Number(match[2]) * 60 + Number(match[3] || 0)];
+  }
   if ((match = state.match(/^(?:der|die|das) (.+) (?:umfasst|bleibt) (\d+) m²(?: gross)?$/u))) {
     return ['Fläche', match[1], Number(match[2])];
   }
@@ -48,10 +56,14 @@ function comparableState(value) {
 }
 
 function compareStates(today, outcome) {
-  if (!normalizeState(today) || !normalizeState(outcome)) return '';
+  if (!normalizeState(today) || !normalizeState(outcome)) return {};
   const first = comparableState(today);
   const second = comparableState(outcome);
-  return JSON.stringify(first) === JSON.stringify(second) ? first[0] : '';
+  if (JSON.stringify(first) === JSON.stringify(second)) return { same: first[0] };
+  // Only compare unequal values when both descriptions refer to the same subject and property.
+  if (first[0] !== 'Wortlaut' && first.length === 3 && second.length === 3 &&
+      first[0] === second[0] && first[1] === second[1]) return { different: first[0] };
+  return {};
 }
 
 function checkProposal(data) {
@@ -181,11 +193,17 @@ function checkProposal(data) {
     if (alternative) hints.push('Wenn der erste Teil beschreibt, was heute gilt: Soll ' + alternative[1] + ' ' + alternative[2].replace(/\bdort\b/iu, 'auf [genauer Ort]') + '?');
   }
   const keep = stem.match(/^(Soll(?:en)?) (.+) beibehalten werden$/iu);
-  const sameYesText = compareStates(baseline, yesDetail);
-  const sameNoText = compareStates(baseline, noDetail);
-  const freeWifi = normalizeState(baseline).match(/^das wlan im (.+) ist kostenlos$/u);
-  const freeStudentWifi = normalizeState(yesDetail).match(/^schülerinnen und schüler bezahlen für das wlan im (.+) nichts$/u);
-  const checkWifiScope = freeWifi && freeStudentWifi && freeWifi[1] === freeStudentWifi[1];
+  const yesComparison = compareStates(baseline, yesDetail);
+  const noComparison = compareStates(baseline, noDetail);
+  const sameYesText = yesComparison.same;
+  const sameNoText = noComparison.same;
+  const freeWifi = /^das wlan im (.+) ist kostenlos$/u;
+  const freeStudentWifi = /^schülerinnen und schüler bezahlen für das wlan im (.+) nichts$/u;
+  const todayWifi = normalizeState(baseline);
+  const yesWifi = normalizeState(yesDetail);
+  const fullWifi = todayWifi.match(freeWifi) || yesWifi.match(freeWifi);
+  const studentWifi = todayWifi.match(freeStudentWifi) || yesWifi.match(freeStudentWifi);
+  const checkWifiScope = fullWifi && studentWifi && fullWifi[1] === studentWifi[1];
   const hasComparison = yesOutcome || noOutcome || yesDetail || noDetail;
   if (sundayServiceAlreadyRuns || sameOpeningDay) {
     add('bad', 'Ja bestätigt den heutigen Zustand',
@@ -203,21 +221,24 @@ function checkProposal(data) {
         ? 'Der Vergleich erkennt dieselbe Angabe bei Heute und Ja' + (sameYesText === 'Wortlaut' ? '.' : ' (' + sameYesText + ').')
         : 'Du hast bei Ja «Wie heute» ausgewählt.',
       'Falls du eine Änderung meinst, beschreibe konkret, was nach einem Ja anders wäre.');
-    } else if (checkWifiScope) {
-      add('warn', 'Kosten und Zielgruppe vergleichen', 'Beide Angaben beschreiben kostenloses WLAN. Bei Ja sind ausdrücklich die Schüler:innen genannt.', 'Prüfe, wer das WLAN heute gratis nutzen darf und ob sich dieser Personenkreis durch ein Ja ändert.');
-    } else if (noOutcome === 'different') {
+    } else if (checkWifiScope && noOutcome !== 'different' && !noComparison.different) {
+      add('warn', 'Kosten und Zielgruppe vergleichen', 'Beide Angaben beschreiben kostenloses WLAN. Eine Beschreibung nennt ausdrücklich Schüler:innen.', 'Prüfe, wer das WLAN heute gratis nutzen darf und ob sich dieser Personenkreis durch ein Ja ändert.');
+    } else if (noOutcome === 'different' || noComparison.different) {
       add('bad', 'Auch Nein ändert etwas', sameNoText
         ? 'Du hast bei Nein «Anders als heute» ausgewählt, beschreibst aber denselben Zustand wie heute.'
-        : 'Du hast bei Nein «Anders als heute» ausgewählt.' + (noDetail ? ' Bei Nein würde gelten: «' + noDetail + '».' : ''),
+        : (noComparison.different ? 'Die Angaben zu Heute und Nein unterscheiden sich (' + noComparison.different + ').' : 'Du hast bei Nein «Anders als heute» ausgewählt.') + (noDetail ? ' Bei Nein würde gelten: «' + noDetail + '».' : ''),
       'Vergleiche die Folgen eines Nein mit heute und korrigiere die Auswahl oder den Entwurf.');
     } else if (yesOutcome === 'different' && noOutcome === 'same' && baseline && yesDetail) {
       const needsNoReview = noDetail && !sameNoText;
       const needsTitleReview = negative || continued;
-      add(needsNoReview || needsTitleReview ? 'warn' : 'good',
-        needsNoReview ? 'Nein mit heute vergleichen' : needsTitleReview ? 'Titel mit Ja vergleichen' : 'Richtung nach deinem Vergleich',
+      const needsYesReview = !yesComparison.different;
+      add(needsNoReview || needsTitleReview || needsYesReview ? 'warn' : 'good',
+        needsNoReview ? 'Nein mit heute vergleichen' : needsTitleReview ? 'Titel mit Ja vergleichen'
+          : needsYesReview ? 'Änderung bei Ja prüfen' : 'Richtung nach deinem Vergleich',
         'Heute: «' + baseline + '». Bei Ja: «' + yesDetail + '». Bei Nein: «' + (noDetail || baseline) + '».',
         needsNoReview ? 'Prüfe, ob der für Nein beschriebene Zustand dieselbe Regel wie heute meint.'
           : needsTitleReview ? 'Der Titel klingt nach einer Fortsetzung. Beschreibe darin, was Ja gegenüber heute konkret ändern würde.'
+          : needsYesReview ? 'Du hast «Anders als heute» ausgewählt. Vergleiche selbst, was sich konkret ändert, etwa Preis, Zeiten oder Personenkreis.'
           : 'Prüfe, ob der Titel genau die bei Ja beschriebene Änderung zur Entscheidung stellt.');
     } else {
       add('warn', 'Vergleich ergänzen', 'Die Angaben zum Vergleich sind noch unvollständig.', 'Beschreibe den heutigen Zustand, wähle für Ja und Nein «Wie heute» oder «Anders als heute» und benenne die Änderung bei Ja.');

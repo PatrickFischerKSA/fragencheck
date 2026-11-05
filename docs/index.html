@@ -24,8 +24,11 @@
 <form id="proposal">
 <div class="field"><label for="title-input">Thementitel <span class="tag">Pflichtfeld</span></label>
 <input id="title-input" name="title" maxlength="300" placeholder="Soll …?" required></div>
-<div class="field"><label for="body">Beitrag <span class="tag">Optional</span></label><p id="body-hint" class="hint">Kontext und Quellen</p>
-<textarea id="body" name="body" rows="4" maxlength="4000" aria-describedby="body-hint"></textarea></div>
+<details id="contribution">
+<summary>Beitrag <span class="tag">Optional</span></summary>
+<div class="field"><label for="body">Kontext und Quellen</label>
+<textarea id="body" name="body" rows="4" maxlength="4000"></textarea></div>
+</details>
 <div class="field"><label for="scope">Politischer Rahmen</label><select id="scope" name="scope"><option value="ch">Schweiz</option><option value="foreign">Anderes Land oder internationale Organisation</option></select>
 <p class="notice" id="foreign-note" hidden>Angaben im Beitrag: Land oder Organisation, Erläuterung des Verfahrens durch die Moderation und geltender Rechtsrahmen.</p></div>
 <details id="outcome-check">

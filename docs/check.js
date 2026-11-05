@@ -16,6 +16,18 @@ function comparableState(value) {
     .replace(/\b(?:eins|zwei|drei|vier|fünf|sechs|sieben|acht|neun|zehn|elf|zwölf)\b/gu, word => String(numberWords.indexOf(word)))
     .replace(/(\d+) (?:quadratmeter|m²)(?=\s|$)/gu, '$1 m²');
   let match;
+  if ((match = state.match(/^(.+) beträgt (\d+(?:[.,]\d+)?)\s*(?:prozent|%)$/u))) {
+    return ['Anteil in Prozent', match[1], Number(match[2].replace(',', '.'))];
+  }
+  if ((match = state.match(/^(.+) dauert (\d+(?:[.,]\d+)?) (minute[n]?|stunde[n]?)$/u))) {
+    return ['Dauer in Minuten', match[1], Number(match[2].replace(',', '.')) * (match[3].startsWith('stunde') ? 60 : 1)];
+  }
+  if ((match = state.match(/^(.+) umfasst (\d+(?:[.,]\d+)?) (hektar(?:en)?|ha|m²)$/u))) {
+    return ['Fläche', match[1].replace(/^(?:der|die|das) /u, ''), Number(match[2].replace(',', '.')) * (match[3] === 'm²' ? 1 : 10000)];
+  }
+  if ((match = state.match(/^(.+) beträgt (\d+) (platz|plätze|standplatz|standplätze)$/u))) {
+    return ['Anzahl Plätze', match[1] + (match[3].startsWith('stand') ? ' (Standplätze)' : ''), Number(match[2])];
+  }
   if ((match = state.match(/^der ([\p{L}-]*abstand) (?:beträgt|liegt bei|muss) (\d+(?:[.,]\d+)?)\s*(kilometer|km|meter|m)(?: betragen)?$/u))) {
     const metres = Number(match[2].replace(',', '.')) * (/^k/u.test(match[3]) ? 1000 : 1);
     return ['Abstand in Metern', match[1], metres];
@@ -82,12 +94,12 @@ function compareStates(today, outcome) {
 function checkProposal(data) {
   const { title, body, scope, baseline, direction, yesOutcome, noOutcome, yesDetail, noDetail, route, pro, contra, rights, foreignConfirmed } = data;
   const text = title.trim();
-  const stem = text.replace(/[?!.]+$/u, '').trim();
+  const stem = text.replace(/^¿\s*/u, '').replace(/[?!.]+$/u, '').trim();
   const foreign = scope === 'foreign';
   const result = [];
   const add = (tone, label, feedback, next = '') => result.push({ name: criteria[result.length], tone, label, feedback, next });
   const open = /^(wie|warum|weshalb|wieso|was|welch\w*|wer|wann|wo|inwiefern|inwieweit|how|why|what|which|who|when|where|pourquoi|comment|quel\w*|qui|quand|où)(?=\s|[?.,]|$)/iu.test(text);
-  const yesNo = /^(soll\w*|muss|müssen|darf|dürfen|kann|können|sind|ist|wird|werden|wäre[n]?|hat|haben|gibt|will|wollen|braucht|sollt\w*|stimm\w*|should|shall|must|can|could|is|are|do|does|will|would|faut-il|doit-on|devrait-on|est-ce que|devrait|doit|faut|peut)(?=\s|$)/iu.test(stem);
+  const yesNo = /^(soll\w*|muss|müssen|darf|dürfen|kann|können|sind|ist|wird|werden|wäre[n]?|hat|haben|gibt|will|wollen|braucht|sollt\w*|stimm\w*|should|shall|must|can|could|is|are|do|does|will|would|faut-il|doit-on|devrait-on|est-ce que|devrait|doit|faut|peut|debe[n]?|debería[n]?)(?=\s|$)/iu.test(stem);
   const alternatives = /\b(?:oder|or|ou)\s+(?:soll\w*|should|devrait)\b|\b(?:entweder|either)\b.+\b(?:oder|or)\b/iu.test(stem);
   const multiple = (text.match(/\?/g) || []).length > 1;
   const negative = /^(?:soll\w*|should|faut-il|devrait-on)\s.*\b(?:beibehalten|unverändert bleiben|weiterhin gelten|remain unchanged|keep the current|maintenir le statu quo)\b/iu.test(stem);
@@ -131,16 +143,19 @@ function checkProposal(data) {
     /^bei nein wird\b.+\b(?:halbiert|verdoppelt|erhöht|gesenkt|abgeschafft|eingeführt)$/iu.test(onNo || '') &&
     !/\b(?:nicht|kein\w*)\b/iu.test(onNo || '');
   const bodyProcedure = body?.match(/\b(volksinitiative|initiative|motion|referendum|petition)\b/iu)?.[0];
-  const petitionRecipient = body?.match(/\bpetition\b[^.!?\n]{0,120}?\ban\s+(?:den|die|das)\s+(Gemeinderat|Stadtrat|Kantonsrat|Bundesrat|Gemeindeversammlung)\b/iu)?.[1];
+  const petitionRecipient = body?.match(/\bpetition\b[^.!?\n]{0,120}?\ban\s+(?:den|die|das)\s+(Gemeinderat|Stadtrat|Kantonsrat|Bundesrat|Gemeindeversammlung|Regierungsrat)\b/iu)?.[1];
   const split = stem.match(/^(Soll (?:die Stadt|die Gemeinde|der Kanton|der Bund)) ([\p{Lu}][\p{L}-]*) oder ([\p{Lu}][\p{L}-]*) (bauen|finanzieren|fördern|einführen)$/u);
-  const coordinatedProjects = stem.match(/^(Soll (?:die Stadt|die Gemeinde|der Kanton|der Bund)) (.+? (?:bauen|finanzieren|fördern|schützen|renaturieren|einführen)) (und|oder) ((?:[A-ZÄÖÜ]|(?:den|die|das|einen|eine|ein) ).+ (?:bauen|finanzieren|fördern|schützen|renaturieren|einführen))$/u);
+  const coordinatedProjects = stem.match(/^(Soll (?:die Stadt|die Gemeinde|der Kanton|der Bund)) (.+? (?:bauen|finanzieren|fördern|schützen|renaturieren|einführen|digitalisieren|einräumen|verbieten)) (und|oder) ((?:[A-ZÄÖÜ]|(?:den|die|das|einen|eine|ein) ).+ (?:bauen|finanzieren|fördern|schützen|renaturieren|einführen|digitalisieren|einräumen|verbieten))$/u);
   const exclusiveProjects = stem.match(/^(Soll (?:die Stadt|die Gemeinde|der Kanton|der Bund)) entweder (.+?) oder (.+?) (bauen|finanzieren|fördern|einführen)$/iu);
   const separateQuestions = text.match(/[^?]+\?/gu)?.map(question => question.trim()) || [];
   const parkingFees = stem.match(/^Soll (die Gemeinde|die Stadt|der Kanton) weiterhin (Gebühren für .+) erheben$/iu);
-  const allowsTorture = (/^(?:soll\w*|darf|dürfen)\b.*\b(?:foltern|folter einsetzen)(?:\s+dürfen)?$/iu.test(stem) ||
+  const allowsTorture = (/^(?:soll\w*|darf|dürfen)\b.*\b(?:foltern|folter einsetzen|durch folter erzwingen)(?:\s+dürfen)?$/iu.test(stem) ||
     /^(?:soll|darf) folter\b.*\berlaubt (?:werden|sein)$/iu.test(stem)) &&
     !/\b(?:nicht|nie|kein\w*|verboten)\b/iu.test(stem);
 
+  const feasibility = stem.match(/^(?:wäre|ist) es möglich,?\s+(.+)$/iu);
+  const factCheck = /^(?:stimmt es|trifft es zu),?\s+dass\b/iu.test(stem);
+  const negativeQuestion = /^soll(?:en)?\b.*\bnicht\b/iu.test(stem);
   if (multiple || alternatives) {
     add('bad', 'Überarbeiten', 'Der Titel enthält mehrere Fragen oder stellt Alternativen zur Wahl.', 'Wähle eine konkrete Massnahme und frage, ob sie umgesetzt werden soll.');
   } else if (open) {
@@ -151,6 +166,11 @@ function checkProposal(data) {
     } else {
       hints.push('Wenn du eine bestimmte Änderung diskutieren willst: Soll [zuständige Stelle] [deine konkrete Massnahme] umsetzen?');
     }
+  } else if (feasibility) {
+    add('warn', 'Entscheidung oder Machbarkeit klären', 'Die Frage erkundigt sich nach der Machbarkeit.', 'Falls über die Umsetzung entschieden werden soll, frage, ob die zuständige Stelle handeln soll.');
+    hints.push('Wenn du über die Umsetzung entscheiden willst: Soll [zuständige Stelle] ' + feasibility[1].replace(/zu (\S+)$/iu, '$1').replace(/\b(ein|auf|ab|an|aus|um|vor)zu(\p{L}+)$/iu, '$1$2') + '?');
+  } else if (factCheck) {
+    add('bad', 'Entscheidung formulieren', 'Die Frage will eine Aussage überprüfen.', 'Nutze die Tatsache als Ausgangslage und benenne die gewünschte Änderung.');
   } else if (statement) {
     add('bad', 'Als Frage formulieren', 'Der Titel formuliert eine Forderung als Aussage.', 'Beginne mit «Soll» und stelle die Massnahme zur Entscheidung.');
     hints.push('Wenn diese Massnahme zur Entscheidung stehen soll: Soll ' + statement[1][0].toLowerCase() + statement[1].slice(1) + ' ' + statement[3] + '?');
@@ -165,6 +185,8 @@ function checkProposal(data) {
       isPackage ? 'Falls beide gemeinsam beschlossen werden sollen, erkläre im Beitrag, warum sie zusammengehören. Sonst stelle je eine Frage.' : 'Falls du eines der Vorhaben zur Entscheidung stellen willst, vergleiche es mit dem heutigen Zustand.');
   } else if (choice) {
     add('warn', 'Alternativen prüfen', '«Oder» kann eine Wahl zwischen zwei Massnahmen anzeigen. Prüfe, ob ein Ja die Frage eindeutig beantwortet.', 'Falls die beiden Optionen getrennte Massnahmen sind, prüfe jeweils eine davon gegen den heutigen Zustand.');
+  } else if (negativeQuestion) {
+    add('warn', 'Ja und Nein eindeutig formulieren', 'Die Verneinung im Titel kann die Bedeutung eines Ja missverständlich machen.', 'Beschreibe zuerst, welche Änderung bei Ja gelten soll, und formuliere genau diese Änderung im Titel.');
   } else if (yesNo && stem.split(/\s+/).length >= 3) {
     if (!text.endsWith('?')) {
       add('bad', 'Überarbeiten', 'Der Satzanfang passt zu einer Entscheidungsfrage. Das Fragezeichen fehlt.', 'Schliesse den Titel mit einem Fragezeichen ab.');
@@ -297,6 +319,8 @@ function checkProposal(data) {
     add('warn', 'Zuständigkeit prüfen', 'Eine Motion im eidgenössischen Parlament richtet sich an den Bundesrat. Du nennst eine Gemeinde- oder Kantonsbehörde als Adressatin.', 'Prüfe das Verfahren auf der Ebene der zuständigen Stelle. Eine Petition kann ein möglicher Weg sein.');
   } else if (!foreign && classDecision) {
     add('bad', 'Politischen Bezug ergänzen', 'Die Frage betrifft offenbar eine Entscheidung innerhalb der Klasse.', 'Wenn dein Thema politisch sein soll, wähle eine Regel oder Massnahme, die eine zuständige öffentliche Stelle beeinflussen kann.');
+  } else if (/\breferendum\b.*\bohne\b.*\bvorlage\b/iu.test(route || '')) {
+    add('warn', 'Vorlage für das Referendum klären', 'In deiner Angabe fehlt die Vorlage, auf die sich das Referendum beziehen würde.', 'Nenne die konkrete Vorlage und prüfe das passende Verfahren auf der zuständigen Ebene.');
   } else if (route) {
     add('good', 'Weg angegeben', 'Du nennst «' + route + '» als möglichen Weg.' + (foreign ? ' Der Auslandsbezug ist laut deiner Angabe im Beitrag erläutert.' : ''), 'Prüfe anhand einer offiziellen Quelle, wer das Verfahren anstossen darf und welche Stelle entscheiden kann.');
   } else if (petitionRecipient) {

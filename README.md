@@ -16,7 +16,7 @@ Eine statische deutschsprachige Webseite zur Vorbereitung von Themenvorschlägen
 ## Verhalten
 
 - Vier Prüfpunkte: Entscheidungsfrage, Ja als Änderung, politisches Verfahren, grundrechtskonformer Spielraum für beide Seiten.
-- Das Tool markiert erkennbare sprachliche Signale und zeigt pro Kriterium einen nächsten Schritt. Für geeignete Formulierungen bietet es eine direkt übernehmbare Titelvariante.
+- Das Tool markiert erkennbare sprachliche Signale und zeigt pro Kriterium einen nächsten Schritt. Für geeignete Formulierungen bietet es mögliche Titelvarianten als Hinweise zur eigenen Überarbeitung.
 - Das optionale Prüfraster nimmt die heutige Lage, die Wirkung von Ja/Nein, den politischen Weg und Argumente beider Seiten auf. Es gibt wieder, was die Autorin oder der Autor selbst abgeklärt hat.
 - Bei Auslandsthemen erinnert es an den erforderlichen Hinweis im Beitrag zur Aufgabe der Moderation und zum geltenden Rechtsrahmen.
 - Der Fragencheck läuft lokal im Browser. Es gibt keine Konten, keinen automatischen Versand und keine dauerhafte Speicherung. Das Klassenforum bleibt der Ort für die Sammlung und Zuteilung der Themen.

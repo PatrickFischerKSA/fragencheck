@@ -18,16 +18,31 @@ function checkProposal(data) {
   const introduce = /\b(?:\w*einführ\w*|\w*einzuführ\w*|wiedereinsetz\w*|verhäng\w*|reintroduc\w*|introduc\w*|restor\w*|rétabl\w*|réintrodu\w*)\b/iu.test(stem);
   const negation = /\b(?:nicht|kein\w*|never|not|against|contre|verbot|verbiet\w*|abschaff\w*|ablehn\w*)\b/iu.test(stem);
   const emrkExit = /\b(?:EMRK|ECHR|CEDH|Menschenrechtskonvention)\b/iu.test(stem) && /kündig|austret|austritt|rückgängig|withdraw|dénonc/iu.test(stem);
-  let rewrite = '';
+  const hints = [];
+  const choice = /\b(?:oder|or|ou)\b/iu.test(stem);
+  const continued = /\b(?:weiterhin|wie bisher|auch künftig)\b/iu.test(stem);
+  const classDecision = /^(?:soll\w*|muss)\s+(?:unsere\s+)?(?:klassengruppe|klassenchat|klasse)\b/iu.test(stem) &&
+    /\b(?:namen|umbenenn\w*)\b/iu.test(stem);
+  const federalMotionToMunicipality = /\bmotion\b/iu.test(route || '') &&
+    /\b(?:eidgenössisch\w*|nationalrat\w*|ständerat\w*|bundesparlament\w*)\b/iu.test(route) &&
+    /\ban (?:den |die |das |einen )?(?:gemeinderat|stadtrat|gemeinde)\b/iu.test(route);
+  const explicitOutcomes = /(?:^|[,.!?\n])\s*(?:heute|bisher|derzeit)\b[^.!?\n]+/iu.test(body || '') &&
+    /(?:^|[,.!?\n])\s*bei ja\b[^.!?\n]+/iu.test(body) &&
+    /(?:^|[,.!?\n])\s*bei nein\b[^.!?\n]+/iu.test(body);
+  const allowsTorture = /^(?:soll\w*|darf|dürfen)\b.*\bfoltern(?:\s+dürfen)?$/iu.test(stem) &&
+    !/\b(?:nicht|nie|kein\w*|verboten)\b/iu.test(stem);
 
   if (multiple || alternatives) {
     add('bad', 'Überarbeiten', 'Der Titel enthält mehrere Fragen oder stellt Alternativen zur Wahl.', 'Wähle eine konkrete Massnahme und frage, ob sie umgesetzt werden soll.');
   } else if (open) {
     add('bad', 'Überarbeiten', 'Der Titel beginnt mit einer offenen Frage.', 'Wähle eine mögliche Lösung und formuliere sie als Entscheidungsfrage: «Soll [zuständige Stelle] [konkrete Massnahme]?»');
+    hints.push('Soll [zuständige Stelle] [eine konkrete Massnahme zu deinem Thema] umsetzen?');
+  } else if (choice) {
+    add('warn', 'Alternativen prüfen', '«Oder» kann eine Wahl zwischen zwei Massnahmen anzeigen. Prüfe, ob ein Ja die Frage eindeutig beantwortet.', 'Falls die beiden Optionen getrennte Massnahmen sind, prüfe jeweils eine davon gegen den heutigen Zustand.');
   } else if (yesNo && stem.split(/\s+/).length >= 3) {
     if (!text.endsWith('?')) {
       add('bad', 'Überarbeiten', 'Der Satzanfang passt zu einer Entscheidungsfrage. Das Fragezeichen fehlt.', 'Schliesse den Titel mit einem Fragezeichen ab.');
-      rewrite = stem + '?';
+      hints.push(stem + '?');
     } else {
       add('good', 'Formal plausibel', 'Der Satzanfang passt zu einer Ja/Nein-Frage.', 'Lies beide Antworten laut: Beziehen sich Ja und Nein eindeutig auf dieselbe Massnahme?');
     }
@@ -35,29 +50,52 @@ function checkProposal(data) {
     add('warn', 'Abklären', 'Das Tool erkennt noch keine eindeutige Ja/Nein-Form.', 'Prüfe, ob der Titel als Frage funktioniert. Verwende etwa «Soll …?», «Should …?» oder «Faut-il … ?».');
   }
 
-  if (!rewrite && yesNo && !multiple && !alternatives && negative) {
-    const keep = stem.match(/^(Soll(?:en)?) (.+) beibehalten werden$/iu);
-    if (keep) rewrite = keep[1] + ' ' + keep[2] + ' aufgehoben werden?';
+  if (multiple || alternatives || (choice && !open)) {
+    const split = stem.match(/^(Soll (?:die Stadt|die Gemeinde|der Kanton|der Bund)) (.+?) oder (.+?) (bauen|finanzieren|fördern|einführen)$/iu);
+    if (split && !alternatives && !multiple && !/\boder\b/iu.test(split[3])) {
+      hints.push(split[1] + ' ' + split[2] + ' ' + split[4] + '?');
+      hints.push(split[1] + ' ' + split[3] + ' ' + split[4] + '?');
+    } else {
+      hints.push('Soll [zuständige Stelle] [erste Massnahme] umsetzen?');
+      hints.push('Soll [zuständige Stelle] [zweite Massnahme] umsetzen?');
+    }
   }
-  if (direction === 'keep' || negative) {
-    add('bad', 'Überarbeiten', 'Ein Ja scheint den heutigen Zustand zu bestätigen.', 'Drehe die Frage um: Nenne die konkrete Änderung, der man mit Ja zustimmen würde. Ein Nein soll die heutige Regel bestehen lassen.');
+  const keep = stem.match(/^(Soll(?:en)?) (.+) beibehalten werden$/iu);
+  if (direction === 'keep' || negative || (continued && direction !== 'change')) {
+    const tentative = continued && !negative && direction !== 'keep';
+    add(tentative ? 'warn' : 'bad', tentative ? 'Richtung prüfen' : 'Überarbeiten',
+      tentative ? '«Weiterhin» oder eine ähnliche Wendung deutet darauf hin, dass ein Ja die bisherige Praxis bestätigt.' : 'Ein Ja scheint den heutigen Zustand zu bestätigen.',
+      'Wenn du eine Änderung diskutieren willst, formuliere sie als Ja-Option. Bei Nein soll die heutige Regel bestehen bleiben.');
+    if (keep) hints.push(keep[1] + ' ' + keep[2] + ' aufgehoben werden? (Falls du eine Aufhebung diskutieren willst.)');
+    else hints.push('Soll [zuständige Stelle] [die heutige Regel] durch [deine gewünschte Änderung] ersetzen?');
   } else if (direction === 'change' && baseline) {
     add('good', 'Nach deiner Angabe', 'Dein Ausgangspunkt: «' + baseline + '». Nach deiner Einschätzung würde Ja etwas ändern und Nein diesen Zustand belassen.', 'Gleiche den Ausgangspunkt mit einer aktuellen Quelle ab.');
+  } else if (!direction && explicitOutcomes) {
+    add('warn', 'Im Beitrag beschrieben', 'Dein Beitrag benennt die heutige Lage sowie die Folgen von Ja und Nein.', 'Vergleiche diese drei Angaben: Beschreibt Ja die Änderung und Nein dieselbe Regel wie heute?');
   } else {
     add('warn', 'Abklären', baseline ? 'Du hast beschrieben, was heute gilt. Die Folgen von Ja und Nein sind noch zu klären.' : 'Aus der Formulierung allein lässt sich nicht erkennen, was heute gilt.', 'Ergänze «Heute gilt …», «Bei Ja ändert sich …» und «Bei Nein bleibt …» im Entwurf oder unter «Rückmeldung präzisieren».');
   }
 
   if (foreign && (!body || !foreignConfirmed)) {
     add('warn', 'Beitrag ergänzen', 'Der Auslandsbezug braucht eine Erklärung im Beitrag.', 'Nenne Land oder Organisation. Halte fest, dass die Moderation das Verfahren erklärt und beide Seiten den geltenden Rechtsrahmen beachten. Die Details können nach der Themenwahl folgen.');
+  } else if (!foreign && federalMotionToMunicipality) {
+    add('warn', 'Zuständigkeit prüfen', 'Eine Motion im eidgenössischen Parlament richtet sich an den Bundesrat. Du nennst eine Gemeindebehörde als Adressatin.', 'Wenn die Massnahme in der Zuständigkeit der Gemeinde liegt, prüfe ein kommunales Verfahren, etwa eine Petition an die zuständige Stelle.');
+  } else if (!foreign && classDecision) {
+    add('bad', 'Politischen Bezug ergänzen', 'Die Frage betrifft offenbar eine Entscheidung innerhalb der Klasse.', 'Wenn dein Thema politisch sein soll, wähle eine Regel oder Massnahme, die eine zuständige öffentliche Stelle beeinflussen kann.');
   } else if (route) {
-    add('good', 'Weg genannt', 'Du nennst «' + route + '» als möglichen Weg.' + (foreign ? ' Der Auslandsbezug ist laut deiner Angabe im Beitrag erläutert.' : ''), 'Prüfe anhand einer offiziellen Quelle, wer das Verfahren anstossen darf und welche Stelle entscheiden kann.');
+    add('good', 'Weg angegeben', 'Du nennst «' + route + '» als möglichen Weg.' + (foreign ? ' Der Auslandsbezug ist laut deiner Angabe im Beitrag erläutert.' : ''), 'Prüfe anhand einer offiziellen Quelle, wer das Verfahren anstossen darf und welche Stelle entscheiden kann.');
   } else {
     add('warn', 'Abklären', 'Ein Verfahren und eine zuständige Stelle fehlen in den Prüfangaben.', foreign ? 'Recherchiere das konkrete Verfahren im gewählten Land oder in der Organisation.' : 'Kläre zuerst Bund, Kanton oder Gemeinde. Prüfe dann z. B. Volksinitiative, Motion über ein Parlamentsmitglied, Referendum zu einer konkreten Vorlage oder Petition an die zuständige Behörde.');
   }
 
   if (!foreign && death && introduce && !negation) {
-    add('bad', 'Nach Klassenregeln unzulässig', 'Der Titel deutet auf eine Wiedereinführung der Todesstrafe. In der Schweiz verbieten Art. 10 Abs. 1 BV und Protokoll Nr. 13 zur EMRK die Todesstrafe.', 'Wechsle zu einer konkreten Massnahme, etwa «Soll der Bund zusätzliche Programme zur Gewaltprävention in Gefängnissen finanzieren?» Prüfe auch dafür Ausgangslage und Zuständigkeit.');
-    rewrite = '';
+    add('bad', 'Nach Klassenregeln unzulässig', 'Der Titel deutet auf eine Wiedereinführung der Todesstrafe. In der Schweiz verbieten Art. 10 Abs. 1 BV und Protokoll Nr. 13 zur EMRK die Todesstrafe.', 'Wähle eine andere Massnahme im Bereich Strafpolitik und prüfe dafür Ausgangslage, Zuständigkeit und den Spielraum für beide Seiten.');
+    hints.length = 0;
+    hints.push('Soll der Bund zusätzliche Programme zur Gewaltprävention in Gefängnissen finanzieren? (Falls dich Gewaltprävention im Strafvollzug interessiert.)');
+  } else if (!foreign && allowsTorture) {
+    add('bad', 'Nach Klassenregeln unzulässig', 'Der Titel deutet darauf hin, dass Folter erlaubt werden soll. Art. 10 Abs. 3 der Bundesverfassung verbietet Folter.', 'Falls dein Anliegen die Polizeiarbeit oder der Schutz von Gefangenen ist, frage nach einer Massnahme innerhalb des geltenden Rechtsrahmens.');
+    hints.length = 0;
+    hints.push('Soll der Kanton eine unabhängige Beschwerdestelle für Personen in Polizeigewahrsam einrichten? (Falls dich die Kontrolle der Polizeiarbeit interessiert.)');
   } else if (rights === 'no') {
     add('bad', 'Überarbeiten', 'Nach deiner Einschätzung kann mindestens eine Seite nur mit einem Verstoss gegen geltende Rechte für ihre Position eintreten.', 'Ändere die Massnahme so, dass beide Seiten tragfähige Argumente im geltenden Rechtsrahmen haben.');
   } else if (emrkExit && !foreign) {
@@ -69,7 +107,7 @@ function checkProposal(data) {
   } else {
     add('warn', 'Abklären', rights === 'unclear' ? 'Nach deiner Einschätzung könnte ein Recht betroffen sein.' : 'Es ist noch offen, ob beide Seiten genügend grundrechtskonformen Spielraum haben.', 'Notiere je ein konkretes Pro- und Contra-Argument. Prüfe dann, welche Grund- oder Menschenrechte berührt sind und ob beide Positionen diese respektieren.');
   }
-  return { result, rewrite };
+  return { result, hints };
 }
 
 if (typeof module === 'object' && module.exports) module.exports = { checkProposal };

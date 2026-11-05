@@ -3,7 +3,6 @@ const byId = id => document.getElementById(id);
 const form = byId('proposal');
 const titleInput = byId('title-input');
 const originalCriteria = byId('criteria').cloneNode(true);
-let candidate = '';
 let checked = false;
 
 function syncScope() {
@@ -15,7 +14,6 @@ function syncScope() {
 function clearFeedback() {
   if (!checked) return;
   checked = false;
-  candidate = '';
   byId('revision').hidden = true;
   byId('criteria').replaceChildren(...originalCriteria.cloneNode(true).children);
   byId('status').textContent = 'Du hast den Entwurf geändert. Prüfe ihn erneut.';
@@ -24,11 +22,14 @@ function clearFeedback() {
 function renderCheck() {
   const data = Object.fromEntries(new FormData(form));
   for (const key of Object.keys(data)) data[key] = data[key].trim();
-  const { result, rewrite } = checkProposal(data);
+  const { result, hints } = checkProposal(data);
   checked = true;
-  candidate = rewrite;
-  byId('revision').hidden = !candidate;
-  byId('rewrite').textContent = candidate;
+  byId('revision').hidden = hints.length === 0;
+  byId('rewrite').replaceChildren(...hints.map(hint => {
+    const item = document.createElement('li');
+    item.textContent = hint;
+    return item;
+  }));
   const list = byId('criteria');
   list.replaceChildren();
   for (const row of result) {
@@ -69,12 +70,6 @@ form.addEventListener('submit', event => {
     titleInput.reportValidity();
     return;
   }
-  renderCheck();
-  byId('feedback-title').focus();
-});
-byId('apply').addEventListener('click', () => {
-  if (!candidate) return;
-  titleInput.value = candidate;
   renderCheck();
   byId('feedback-title').focus();
 });

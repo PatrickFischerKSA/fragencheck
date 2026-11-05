@@ -346,9 +346,9 @@ function checkProposal(data) {
   } else if (!direction && today && onYes && onNo) {
     add('warn', 'Im Beitrag beschrieben',
       'Dein Beitrag nennt «' + today + '», «' + onYes + '» und «' + onNo + '».',
-      'Trage die Angaben oben in den Vergleich ein. Entscheide für Ja und Nein einzeln, ob sich gegenüber heute tatsächlich etwas ändert.');
+      'Für einen genaueren Abgleich steht der optionale Vergleich von Heute, Ja und Nein zur Verfügung.');
   } else {
-    add('warn', 'Abklären', baseline ? 'Du hast beschrieben, was heute gilt. Die Folgen von Ja und Nein sind noch zu klären.' : 'Aus der Formulierung allein lässt sich nicht erkennen, was heute gilt.', 'Ergänze «Heute gilt …», «Bei Ja ändert sich …» und «Bei Nein bleibt …» im Bereich «Heute, Ja und Nein vergleichen».');
+    add('warn', 'Abklären', baseline ? 'Du hast beschrieben, was heute gilt. Die Folgen von Ja und Nein sind noch zu klären.' : 'Aus der Formulierung allein lässt sich nicht erkennen, was heute gilt.', 'Der optionale Vergleich von Heute, Ja und Nein kann die Rückmeldung präzisieren.');
   }
 
   if (foreign && (!body || !foreignConfirmed)) {

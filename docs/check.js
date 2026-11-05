@@ -15,20 +15,21 @@ function checkProposal(data) {
   const multiple = (text.match(/\?/g) || []).length > 1;
   const negative = /^(?:soll\w*|should|faut-il|devrait-on)\s.*\b(?:beibehalten|unverändert bleiben|weiterhin gelten|remain unchanged|keep the current|maintenir le statu quo)\b/iu.test(stem);
   const death = /\b(?:todesstrafe|death penalty|capital punishment|peine de mort)\b/iu.test(stem);
-  const introduce = /\b(?:\w*einführ\w*|\w*einzuführ\w*|wiedereinsetz\w*|verhäng\w*|reintroduc\w*|introduc\w*|restor\w*|rétabl\w*|réintrodu\w*)\b/iu.test(stem);
+  const introduce = /\b(?:\w*einführ\w*|\w*einzuführ\w*|wiedereinsetz\w*|verhäng\w*|zulass\w*|reintroduc\w*|introduc\w*|restor\w*|rétabl\w*|réintrodu\w*)\b/iu.test(stem);
   const negation = /\b(?:nicht|kein\w*|never|not|against|contre|verbot|verbiet\w*|abschaff\w*|ablehn\w*)\b/iu.test(stem);
   const emrkExit = /\b(?:EMRK|ECHR|CEDH|Menschenrechtskonvention)\b/iu.test(stem) && /kündig|austret|austritt|rückgängig|withdraw|dénonc/iu.test(stem);
   const hints = [];
   const choice = /\b(?:oder|or|ou)\b/iu.test(stem.replace(/,?\s+(?:oder nicht|or not|ou non)$/iu, ''));
-  const statement = stem.match(/^(Die (?:Stadt|Gemeinde|Schweiz)|Der (?:Kanton|Bund))\s+(soll|sollte)\s+(.+)$/u);
-  const factQuestion = /^(?:ist|sind|hat|haben|gibt)\b.*\b(?:offen|geöffnet|geschlossen|vorhanden|bereits)\b/iu.test(stem) &&
-    !/\b(?:soll\w*|sinnvoll|notwendig|erforderlich)\b/iu.test(stem);
+  const statement = stem.match(/^(Die (?:Stadt|Gemeinde|Schweiz)|Der (?:Kanton|Bund|Gemeinderat|Stadtrat|Kantonsrat|Bundesrat))\s+(soll|sollte)\s+(.+)$/u);
+  const existenceQuestion = /^(?:(?:hat|haben)\s+.+|gibt es)\s+(?:ein(?:e|en|em|er)?|keine?)\s+.+$/iu.test(stem);
+  const factQuestion = (existenceQuestion || /^(?:ist|sind|hat|haben|gibt)\b.*\b(?:offen|geöffnet|geschlossen|vorhanden|bereits)\b/iu.test(stem)) &&
+    !/\b(?:soll\w*|sinnvoll|notwendig|erforderlich|genug|ausreichend)\b/iu.test(stem);
   const continued = /\b(?:weiterhin|wie bisher|auch künftig)\b/iu.test(stem);
   const classDecision = /^(?:soll\w*|muss)\s+(?:unsere\s+)?(?:klassengruppe|klassenchat|klasse)\b/iu.test(stem) &&
     /\b(?:namen|umbenenn\w*)\b/iu.test(stem);
-  const federalMotionToMunicipality = /\bmotion\b/iu.test(route || '') &&
+  const federalMotionToLocalAuthority = /\bmotion\b/iu.test(route || '') &&
     /\b(?:eidgenössisch\w*|nationalrat\w*|ständerat\w*|bundesparlament\w*)\b/iu.test(route) &&
-    /\ban (?:den |die |das |einen )?(?:gemeinderat|stadtrat|gemeinde)\b/iu.test(route);
+    /\ban (?:den |die |das |einen )?(?:gemeinderat|stadtrat|gemeinde|kantonsrat|regierungsrat)\b/iu.test(route);
   const today = body?.match(/(?:^|[.!?\n])\s*((?:heute|bisher|derzeit)\b[^.!?\n]+)/iu)?.[1].trim();
   const onYes = body?.match(/(?:^|[,.!?\n])\s*(bei ja\b[^.!?\n]+?)(?=,\s*bei nein\b|[.!?\n]|$)/iu)?.[1].trim();
   const onNo = body?.match(/(?:^|[,.!?\n])\s*(bei nein\b[^.!?\n]+)/iu)?.[1].trim();
@@ -41,17 +42,26 @@ function checkProposal(data) {
   const sundayServiceAlreadyRuns = sundayServiceQuestion &&
     sundayServiceAtYes.test(onYes || '') &&
     (body || '').split(/[.!?\n]/u).some(sentence => sundayServiceNow.test(sentence.trim()));
-  const libraryOpeningQuestion = /\bbibliothek\b.*\b(?:am montag|montags)\s+öffnen$/iu.test(stem);
-  const libraryAlreadyOpen = libraryOpeningQuestion &&
-    /^(?:(?:heute|bisher|derzeit) ist die bibliothek|die bibliothek ist) (?:bereits |schon )?(?:am montag|montags) (?:(?:bereits|schon) )?(?:offen|geöffnet)$/iu.test(today || '') &&
-    /^bei ja öffnet (?:sie|die bibliothek) (?:auch )?(?:am montag|montags)$/iu.test(onYes || '');
+  const openingDay = /\b(?:am )?(montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)s?\b(?=\s+öffnen(?:\s+lassen)?$)/iu.exec(stem)?.[1].toLowerCase();
+  const openingNow = /^(?:heute|bisher|derzeit)\s+(?:ist|öffnet)\s+(?:der|die|das)\s+([\p{L}-]+) (?:am )?(\p{L}+?)s?(?: (?:schon|bereits))?(?: (offen|geöffnet))?$/iu.exec(today || '');
+  const openingAtYes = /^bei ja öffnet (?:er|sie|es|(?:der|die|das) ([\p{L}-]+)) (?:(?:auch|neu) )?(?:am )?(\p{L}+?)s?$/iu.exec(onYes || '');
+  const openingPlace = openingNow?.[1].toLowerCase();
+  const sameOpeningDay = openingDay && openingPlace &&
+    stem.toLowerCase().split(/\s+/u).some(word => word.endsWith(openingPlace)) &&
+    openingNow[2].toLowerCase() === openingDay &&
+    openingAtYes?.[2].toLowerCase() === openingDay &&
+    (!openingAtYes[1] || openingAtYes[1].toLowerCase() === openingPlace) &&
+    (/^\S+ öffnet /iu.test(today) || openingNow[3]);
+  const noExplicitlyChanges = today && onYes &&
+    /^bei nein wird\b.+\b(?:halbiert|verdoppelt|erhöht|gesenkt|abgeschafft|eingeführt)$/iu.test(onNo || '') &&
+    !/\b(?:nicht|kein\w*)\b/iu.test(onNo || '');
   const bodyProcedure = body?.match(/\b(volksinitiative|initiative|motion|referendum|petition)\b/iu)?.[0];
   const petitionRecipient = body?.match(/\bpetition\b[^.!?\n]{0,120}?\ban\s+(?:den|die|das)\s+(Gemeinderat|Stadtrat|Kantonsrat|Bundesrat|Gemeindeversammlung)\b/iu)?.[1];
   const split = stem.match(/^(Soll (?:die Stadt|die Gemeinde|der Kanton|der Bund)) ([\p{Lu}][\p{L}-]*) oder ([\p{Lu}][\p{L}-]*) (bauen|finanzieren|fördern|einführen)$/u);
   const exclusiveProjects = stem.match(/^(Soll (?:die Stadt|die Gemeinde|der Kanton|der Bund)) entweder (.+?) oder (.+?) (bauen|finanzieren|fördern|einführen)$/iu);
   const separateQuestions = text.match(/[^?]+\?/gu)?.map(question => question.trim()) || [];
   const parkingFees = stem.match(/^Soll (die Gemeinde|die Stadt|der Kanton) weiterhin (Gebühren für .+) erheben$/iu);
-  const allowsTorture = (/^(?:soll\w*|darf|dürfen)\b.*\bfoltern(?:\s+dürfen)?$/iu.test(stem) ||
+  const allowsTorture = (/^(?:soll\w*|darf|dürfen)\b.*\b(?:foltern|folter einsetzen)(?:\s+dürfen)?$/iu.test(stem) ||
     /^(?:soll|darf) folter\b.*\berlaubt (?:werden|sein)$/iu.test(stem)) &&
     !/\b(?:nicht|nie|kein\w*|verboten)\b/iu.test(stem);
 
@@ -121,10 +131,12 @@ function checkProposal(data) {
     if (alternative) hints.push('Wenn der erste Teil beschreibt, was heute gilt: Soll ' + alternative[1] + ' ' + alternative[2].replace(/\bdort\b/iu, 'auf [genauer Ort]') + '?');
   }
   const keep = stem.match(/^(Soll(?:en)?) (.+) beibehalten werden$/iu);
-  if (sundayServiceAlreadyRuns || libraryAlreadyOpen) {
+  if (sundayServiceAlreadyRuns || sameOpeningDay) {
     add('bad', 'Ja bestätigt den heutigen Zustand',
-      sundayServiceAlreadyRuns ? 'Laut deinem Beitrag fährt der Bus heute schon sonntags. Die Ja-Option beschreibt denselben Betrieb.' : 'Laut deinem Beitrag ist die Bibliothek montags bereits geöffnet. Die Ja-Option beschreibt dieselbe Öffnung.',
+      sundayServiceAlreadyRuns ? 'Laut deinem Beitrag fährt der Bus heute schon sonntags. Die Ja-Option beschreibt denselben Betrieb.' : 'Laut deinem Beitrag ist das Angebot an diesem Wochentag bereits geöffnet. Die Ja-Option nennt denselben Öffnungstag.',
       'Wenn du das Angebot ändern willst, nenne die konkrete Änderung im Titel und im Beitrag. Beschreibe bei Nein den heutigen Zustand.');
+  } else if (noExplicitlyChanges) {
+    add('bad', 'Auch Nein ändert etwas', 'Dein Beitrag beschreibt bei Nein eine Änderung: «' + onNo + '».', 'Beschreibe bei Nein den heutigen Zustand. Falls du zwischen zwei Änderungen wählen willst, formuliere sie als getrennte Fragen.');
   } else if (direction === 'keep' || negative || (continued && direction !== 'change')) {
     const tentative = continued && !negative && direction !== 'keep';
     add(tentative ? 'warn' : 'bad', tentative ? 'Richtung prüfen' : 'Überarbeiten',
@@ -151,8 +163,8 @@ function checkProposal(data) {
 
   if (foreign && (!body || !foreignConfirmed)) {
     add('warn', 'Beitrag ergänzen', 'Der Auslandsbezug braucht eine Erklärung im Beitrag.', 'Nenne Land oder Organisation. Halte fest, dass die Moderation das Verfahren erklärt und beide Seiten den geltenden Rechtsrahmen beachten. Die Details können nach der Themenwahl folgen.');
-  } else if (!foreign && federalMotionToMunicipality) {
-    add('warn', 'Zuständigkeit prüfen', 'Eine Motion im eidgenössischen Parlament richtet sich an den Bundesrat. Du nennst eine Gemeindebehörde als Adressatin.', 'Wenn die Massnahme in der Zuständigkeit der Gemeinde liegt, prüfe ein kommunales Verfahren, etwa eine Petition an die zuständige Stelle.');
+  } else if (!foreign && federalMotionToLocalAuthority) {
+    add('warn', 'Zuständigkeit prüfen', 'Eine Motion im eidgenössischen Parlament richtet sich an den Bundesrat. Du nennst eine Gemeinde- oder Kantonsbehörde als Adressatin.', 'Prüfe das Verfahren auf der Ebene der zuständigen Stelle. Eine Petition kann ein möglicher Weg sein.');
   } else if (!foreign && classDecision) {
     add('bad', 'Politischen Bezug ergänzen', 'Die Frage betrifft offenbar eine Entscheidung innerhalb der Klasse.', 'Wenn dein Thema politisch sein soll, wähle eine Regel oder Massnahme, die eine zuständige öffentliche Stelle beeinflussen kann.');
   } else if (route) {
@@ -166,7 +178,7 @@ function checkProposal(data) {
   }
 
   if (!foreign && death && introduce && !negation) {
-    add('bad', 'Nach Klassenregeln unzulässig', 'Der Titel deutet auf eine Wiedereinführung der Todesstrafe. In der Schweiz verbieten Art. 10 Abs. 1 BV und Protokoll Nr. 13 zur EMRK die Todesstrafe.', 'Wähle eine andere Massnahme im Bereich Strafpolitik und prüfe dafür Ausgangslage, Zuständigkeit und den Spielraum für beide Seiten.');
+    add('bad', 'Nach Klassenregeln unzulässig', 'Der Titel deutet darauf hin, dass die Todesstrafe eingeführt oder erlaubt werden soll. In der Schweiz verbieten Art. 10 Abs. 1 BV und Protokoll Nr. 13 zur EMRK die Todesstrafe.', 'Wähle eine andere Massnahme im Bereich Strafpolitik und prüfe dafür Ausgangslage, Zuständigkeit und den Spielraum für beide Seiten.');
     hints.length = 0;
     hints.push('Soll der Bund zusätzliche Programme zur Gewaltprävention in Gefängnissen finanzieren? (Falls dich Gewaltprävention im Strafvollzug interessiert.)');
   } else if (!foreign && allowsTorture) {

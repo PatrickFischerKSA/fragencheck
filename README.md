@@ -21,3 +21,5 @@ Eine statische deutschsprachige Webseite zur Vorbereitung von Themenvorschlägen
 - Bei Auslandsthemen erinnert es an den erforderlichen Hinweis im Beitrag zur Aufgabe der Moderation und zum geltenden Rechtsrahmen.
 - Der Fragencheck läuft lokal im Browser. Es gibt keine Konten, keinen automatischen Versand und keine dauerhafte Speicherung. Das Klassenforum bleibt der Ort für die Sammlung und Zuteilung der Themen.
 - Die Prüfung ermittelt weder die heutige Rechtslage noch die tatsächliche Zuständigkeit und ersetzt keine Prüfung der Argumente. Amtliche Recherchelinks sind auf der Seite hinterlegt.
+
+Für die Prüfung der Abstimmungsrichtung werden der heutige Zustand und die Folgen von Ja und Nein getrennt erfasst. Die Rückmeldung stützt sich auf diesen Vergleich. Freitext im Beitrag liefert ergänzende Hinweise.

@@ -27,9 +27,18 @@
 <textarea id="body" name="body" rows="4" maxlength="4000" aria-describedby="body-hint" placeholder="Hier kannst du deine Frage erläutern …"></textarea></div>
 <div class="field"><label for="scope">Politischer Rahmen</label><select id="scope" name="scope"><option value="ch">Schweiz</option><option value="foreign">Anderes Land oder internationale Organisation</option></select>
 <p class="notice" id="foreign-note" hidden>Besonders für Fremdsprachenfächer möglich. Mache im Beitrag transparent, dass die Moderation das politische Verfahren dem Publikum erklärt und beide Seiten den geltenden Rechtsrahmen beachten. Details können nach der Themenwahl folgen.</p></div>
-<details id="context"><summary>Rückmeldung präzisieren <span class="tag">Optional</span></summary>
-<div class="field"><label for="baseline">Was gilt heute?</label><input id="baseline" name="baseline" maxlength="300" placeholder="Heutige Regel oder Praxis beschreiben"></div>
-<div class="field"><label for="direction">Was bedeutet ein Ja?</label><select id="direction" name="direction"><option value="">Noch offen</option><option value="change">Ja ändert etwas, Nein belässt es beim heutigen Zustand</option><option value="keep">Ja behält den heutigen Zustand bei</option><option value="unclear">Die Folgen von Ja und Nein sind unklar</option></select></div>
+<fieldset class="outcome-check">
+<legend>Heute, Ja und Nein vergleichen</legend>
+<p class="hint">Beschreibe dieselbe Regel oder dasselbe Angebot in allen drei Fällen. Vergleiche zum Beispiel den Wochentag, die Gebühr oder den Umfang.</p>
+<div class="field"><label for="baseline">Was gilt heute?</label><input id="baseline" name="baseline" maxlength="300" placeholder="Heutige Regel oder Praxis"></div>
+<div class="arguments">
+<div class="field"><label for="yes-outcome">Was gilt bei Ja?</label><select id="yes-outcome" name="yesOutcome"><option value="">Noch offen</option><option value="same">Wie heute</option><option value="different">Anders als heute</option></select></div>
+<div class="field"><label for="no-outcome">Was gilt bei Nein?</label><select id="no-outcome" name="noOutcome"><option value="">Noch offen</option><option value="same">Wie heute</option><option value="different">Anders als heute</option></select></div>
+</div>
+<div class="field"><label for="yes-detail">Zustand bei Ja</label><input id="yes-detail" name="yesDetail" maxlength="300" placeholder="Bei einer Änderung: Was gilt dann konkret?"></div>
+<div class="field"><label for="no-detail">Zustand bei Nein <span class="tag">Optional</span></label><input id="no-detail" name="noDetail" maxlength="300" placeholder="Bei einer Änderung: Was gilt dann konkret?"></div>
+</fieldset>
+<details id="context"><summary>Politischen Weg und Argumente ergänzen <span class="tag">Optional</span></summary>
 <div class="field"><label for="route">Politischer Weg und zuständige Stelle</label><input id="route" name="route" maxlength="300" placeholder="Z. B. Petition an den Gemeinderat"></div>
 <div class="arguments"><div class="field"><label for="pro">Ein Pro-Argument</label><textarea id="pro" name="pro" maxlength="500" rows="2"></textarea></div><div class="field"><label for="contra">Ein Contra-Argument</label><textarea id="contra" name="contra" maxlength="500" rows="2"></textarea></div></div>
 <div class="field"><label for="rights">Können beide Seiten die geltenden Rechte respektieren?</label><select id="rights" name="rights"><option value="">Noch nicht abgeklärt</option><option value="yes">Ja, nach meiner Recherche</option><option value="unclear">Unklar, ein Recht könnte betroffen sein</option><option value="no">Nein, mindestens eine Position setzt einen Verstoss voraus</option></select></div>

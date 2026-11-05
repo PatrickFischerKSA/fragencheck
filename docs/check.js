@@ -3,7 +3,7 @@
 const criteria = ['Entscheidungsfrage', 'Ja verändert etwas', 'Politischer Weg', 'Grund- und Menschenrechte'];
 
 function checkProposal(data) {
-  const { title, body, scope, baseline, direction, route, pro, contra, rights, foreignConfirmed } = data;
+  const { title, body, scope, baseline, direction, yesOutcome, noOutcome, yesDetail, noDetail, route, pro, contra, rights, foreignConfirmed } = data;
   const text = title.trim();
   const stem = text.replace(/[?!.]+$/u, '').trim();
   const foreign = scope === 'foreign';
@@ -33,8 +33,6 @@ function checkProposal(data) {
   const today = body?.match(/(?:^|[.!?\n])\s*((?:heute|bisher|derzeit)\b[^.!?\n]+)/iu)?.[1].trim();
   const onYes = body?.match(/(?:^|[,.!?\n])\s*(bei ja\b[^.!?\n]+?)(?=,\s*bei nein\b|[.!?\n]|$)/iu)?.[1].trim();
   const onNo = body?.match(/(?:^|[,.!?\n])\s*(bei nein\b[^.!?\n]+)/iu)?.[1].trim();
-  const noKeepsBaseline = !/\b(?:nicht|kaum)\b/iu.test(onNo || '') && /^bei nein\s+(?:bleibt|bleiben)\b.*\b(?:unverändert|wie bisher|wie heute)\b/iu.test(onNo || '');
-  const yesStatesChange = !/\b(?:nicht|nie|unverändert|wie bisher)\b/iu.test(onYes || '') && /^bei ja\b.*\b(?:neu|zusätzlich|erstmals|auch am|auch an|auch sonntags|wird abgeschafft)\b/iu.test(onYes || '');
   // Compare the same service and day before treating "auch" as a change.
   const sundayServiceQuestion = /\b(?:ortsbus|bus)\b.*\b(?:am sonntag|sonntags)\s+fahren lassen$/iu.test(stem);
   const sundayServiceNow = /^(?:(?:heute|bisher|derzeit)\s+fährt\s+(?:er|der (?:ortsbus|bus))|der (?:ortsbus|bus)\s+fährt)\s+(?:(?:bereits|schon|auch|heute|derzeit)\s+)*(?:am sonntag|sonntags)$/iu;
@@ -131,12 +129,41 @@ function checkProposal(data) {
     if (alternative) hints.push('Wenn der erste Teil beschreibt, was heute gilt: Soll ' + alternative[1] + ' ' + alternative[2].replace(/\bdort\b/iu, 'auf [genauer Ort]') + '?');
   }
   const keep = stem.match(/^(Soll(?:en)?) (.+) beibehalten werden$/iu);
+  const normalizeState = value => (value || '').normalize('NFC').toLocaleLowerCase('de-CH')
+    .trim().replace(/[.!?]+$/u, '').replace(/\s+/gu, ' ').trim();
+  const todayState = normalizeState(baseline);
+  const sameYesText = todayState && todayState === normalizeState(yesDetail);
+  const sameNoText = todayState && todayState === normalizeState(noDetail);
+  const hasComparison = yesOutcome || noOutcome || yesDetail || noDetail;
   if (sundayServiceAlreadyRuns || sameOpeningDay) {
     add('bad', 'Ja bestätigt den heutigen Zustand',
       sundayServiceAlreadyRuns ? 'Laut deinem Beitrag fährt der Bus heute schon sonntags. Die Ja-Option beschreibt denselben Betrieb.' : 'Laut deinem Beitrag ist das Angebot an diesem Wochentag bereits geöffnet. Die Ja-Option nennt denselben Öffnungstag.',
       'Wenn du das Angebot ändern willst, nenne die konkrete Änderung im Titel und im Beitrag. Beschreibe bei Nein den heutigen Zustand.');
   } else if (noExplicitlyChanges) {
     add('bad', 'Auch Nein ändert etwas', 'Dein Beitrag beschreibt bei Nein eine Änderung: «' + onNo + '».', 'Beschreibe bei Nein den heutigen Zustand. Falls du zwischen zwei Änderungen wählen willst, formuliere sie als getrennte Fragen.');
+  } else if (hasComparison) {
+    if (yesOutcome === 'same' || sameYesText) {
+      add('bad', 'Ja bestätigt den heutigen Zustand', sameYesText
+        ? 'Der beschriebene Zustand bei Ja entspricht deiner Beschreibung für heute.'
+        : 'Du hast bei Ja «Wie heute» ausgewählt.',
+      'Falls du eine Änderung meinst, beschreibe konkret, was nach einem Ja anders wäre.');
+    } else if (noOutcome === 'different') {
+      add('bad', 'Auch Nein ändert etwas', sameNoText
+        ? 'Du hast bei Nein «Anders als heute» ausgewählt, beschreibst aber denselben Zustand wie heute.'
+        : 'Du hast bei Nein «Anders als heute» ausgewählt.' + (noDetail ? ' Bei Nein würde gelten: «' + noDetail + '».' : ''),
+      'Vergleiche die Folgen eines Nein mit heute und korrigiere die Auswahl oder den Entwurf.');
+    } else if (yesOutcome === 'different' && noOutcome === 'same' && baseline && yesDetail) {
+      const needsNoReview = noDetail && !sameNoText;
+      const needsTitleReview = negative || continued;
+      add(needsNoReview || needsTitleReview ? 'warn' : 'good',
+        needsNoReview ? 'Nein mit heute vergleichen' : needsTitleReview ? 'Titel mit Ja vergleichen' : 'Richtung nach deinem Vergleich',
+        'Heute: «' + baseline + '». Bei Ja: «' + yesDetail + '». Bei Nein: «' + (noDetail || baseline) + '».',
+        needsNoReview ? 'Prüfe, ob der für Nein beschriebene Zustand dieselbe Regel wie heute meint.'
+          : needsTitleReview ? 'Der Titel klingt nach einer Fortsetzung. Beschreibe darin, was Ja gegenüber heute konkret ändern würde.'
+          : 'Prüfe, ob der Titel genau die bei Ja beschriebene Änderung zur Entscheidung stellt.');
+    } else {
+      add('warn', 'Vergleich ergänzen', 'Die Angaben zum Vergleich sind noch unvollständig.', 'Beschreibe den heutigen Zustand, wähle für Ja und Nein «Wie heute» oder «Anders als heute» und benenne die Änderung bei Ja.');
+    }
   } else if (direction === 'keep' || negative || (continued && direction !== 'change')) {
     const tentative = continued && !negative && direction !== 'keep';
     add(tentative ? 'warn' : 'bad', tentative ? 'Richtung prüfen' : 'Überarbeiten',
@@ -152,13 +179,11 @@ function checkProposal(data) {
   } else if (direction === 'change' && baseline) {
     add('good', 'Nach deiner Angabe', 'Dein Ausgangspunkt: «' + baseline + '». Nach deiner Einschätzung würde Ja etwas ändern und Nein diesen Zustand belassen.', 'Gleiche den Ausgangspunkt mit einer aktuellen Quelle ab.');
   } else if (!direction && today && onYes && onNo) {
-    const statedDirection = noKeepsBaseline && yesStatesChange;
-    add(statedDirection ? 'good' : 'warn',
-      statedDirection ? 'Richtung im Beitrag plausibel' : 'Im Beitrag beschrieben',
+    add('warn', 'Im Beitrag beschrieben',
       'Dein Beitrag nennt «' + today + '», «' + onYes + '» und «' + onNo + '».',
-      statedDirection ? 'So ist die Richtung beschrieben: Ja ändert etwas, Nein belässt den heutigen Zustand. Prüfe, ob der Titel dieselbe Änderung nennt und deine Ausgangslage zutrifft.' : 'Vergleiche diese drei Angaben: Beschreibt Ja die Änderung und Nein dieselbe Regel wie heute?');
+      'Trage die Angaben oben in den Vergleich ein. Entscheide für Ja und Nein einzeln, ob sich gegenüber heute tatsächlich etwas ändert.');
   } else {
-    add('warn', 'Abklären', baseline ? 'Du hast beschrieben, was heute gilt. Die Folgen von Ja und Nein sind noch zu klären.' : 'Aus der Formulierung allein lässt sich nicht erkennen, was heute gilt.', 'Ergänze «Heute gilt …», «Bei Ja ändert sich …» und «Bei Nein bleibt …» im Entwurf oder unter «Rückmeldung präzisieren».');
+    add('warn', 'Abklären', baseline ? 'Du hast beschrieben, was heute gilt. Die Folgen von Ja und Nein sind noch zu klären.' : 'Aus der Formulierung allein lässt sich nicht erkennen, was heute gilt.', 'Ergänze «Heute gilt …», «Bei Ja ändert sich …» und «Bei Nein bleibt …» im Bereich «Heute, Ja und Nein vergleichen».');
   }
 
   if (foreign && (!body || !foreignConfirmed)) {

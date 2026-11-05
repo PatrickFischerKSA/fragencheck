@@ -26,9 +26,13 @@ function checkProposal(data) {
   const federalMotionToMunicipality = /\bmotion\b/iu.test(route || '') &&
     /\b(?:eidgenössisch\w*|nationalrat\w*|ständerat\w*|bundesparlament\w*)\b/iu.test(route) &&
     /\ban (?:den |die |das |einen )?(?:gemeinderat|stadtrat|gemeinde)\b/iu.test(route);
-  const explicitOutcomes = /(?:^|[,.!?\n])\s*(?:heute|bisher|derzeit)\b[^.!?\n]+/iu.test(body || '') &&
-    /(?:^|[,.!?\n])\s*bei ja\b[^.!?\n]+/iu.test(body) &&
-    /(?:^|[,.!?\n])\s*bei nein\b[^.!?\n]+/iu.test(body);
+  const today = body?.match(/(?:^|[.!?\n])\s*((?:heute|bisher|derzeit)\b[^.!?\n]+)/iu)?.[1].trim();
+  const onYes = body?.match(/(?:^|[,.!?\n])\s*(bei ja\b[^.!?\n]+?)(?=,\s*bei nein\b|[.!?\n]|$)/iu)?.[1].trim();
+  const onNo = body?.match(/(?:^|[,.!?\n])\s*(bei nein\b[^.!?\n]+)/iu)?.[1].trim();
+  const bodyProcedure = body?.match(/\b(volksinitiative|initiative|motion|referendum|petition)\b/iu)?.[0];
+  const split = stem.match(/^(Soll (?:die Stadt|die Gemeinde|der Kanton|der Bund)) ([\p{Lu}][\p{L}-]*) oder ([\p{Lu}][\p{L}-]*) (bauen|finanzieren|fördern|einführen)$/u);
+  const separateQuestions = text.match(/[^?]+\?/gu)?.map(question => question.trim()) || [];
+  const parkingFees = stem.match(/^Soll (die Gemeinde|die Stadt|der Kanton) weiterhin (Gebühren für .+) erheben$/iu);
   const allowsTorture = /^(?:soll\w*|darf|dürfen)\b.*\bfoltern(?:\s+dürfen)?$/iu.test(stem) &&
     !/\b(?:nicht|nie|kein\w*|verboten)\b/iu.test(stem);
 
@@ -36,7 +40,14 @@ function checkProposal(data) {
     add('bad', 'Überarbeiten', 'Der Titel enthält mehrere Fragen oder stellt Alternativen zur Wahl.', 'Wähle eine konkrete Massnahme und frage, ob sie umgesetzt werden soll.');
   } else if (open) {
     add('bad', 'Überarbeiten', 'Der Titel beginnt mit einer offenen Frage.', 'Wähle eine mögliche Lösung und formuliere sie als Entscheidungsfrage: «Soll [zuständige Stelle] [konkrete Massnahme]?»');
-    hints.push('Soll [zuständige Stelle] [eine konkrete Massnahme zu deinem Thema] umsetzen?');
+    if (/^wie soll der bund lebensmittelverschwendung bekämpfen$/iu.test(stem)) {
+      hints.push('Wenn dich unverkaufte Ware im Detailhandel interessiert: Soll der Bund grosse Detailhändler verpflichten, geniessbare unverkaufte Lebensmittel zur Weitergabe anzubieten?');
+      hints.push('Wenn dich Abfall in Haushalten interessiert: Soll der Bund Programme zur Vermeidung von Lebensmittelabfällen in Haushalten finanzieren?');
+    } else {
+      hints.push('Wenn du eine bestimmte Änderung diskutieren willst: Soll [zuständige Stelle] [deine konkrete Massnahme] umsetzen?');
+    }
+  } else if (split) {
+    add('warn', 'Entscheidung präzisieren', 'Die Frage lässt offen, ob du zwischen zwei Vorhaben wählen oder beide gemeinsam zur Abstimmung stellen willst.', 'Wenn dieselbe Fläche zur Debatte steht, nenne den Ort und frage nach genau einer Nutzung gegenüber dem heutigen Zustand.');
   } else if (choice) {
     add('warn', 'Alternativen prüfen', '«Oder» kann eine Wahl zwischen zwei Massnahmen anzeigen. Prüfe, ob ein Ja die Frage eindeutig beantwortet.', 'Falls die beiden Optionen getrennte Massnahmen sind, prüfe jeweils eine davon gegen den heutigen Zustand.');
   } else if (yesNo && stem.split(/\s+/).length >= 3) {
@@ -50,15 +61,15 @@ function checkProposal(data) {
     add('warn', 'Abklären', 'Das Tool erkennt noch keine eindeutige Ja/Nein-Form.', 'Prüfe, ob der Titel als Frage funktioniert. Verwende etwa «Soll …?», «Should …?» oder «Faut-il … ?».');
   }
 
-  if (multiple || alternatives || (choice && !open)) {
-    const split = stem.match(/^(Soll (?:die Stadt|die Gemeinde|der Kanton|der Bund)) (.+?) oder (.+?) (bauen|finanzieren|fördern|einführen)$/iu);
-    if (split && !alternatives && !multiple && !/\boder\b/iu.test(split[3])) {
-      hints.push(split[1] + ' ' + split[2] + ' ' + split[4] + '?');
-      hints.push(split[1] + ' ' + split[3] + ' ' + split[4] + '?');
-    } else {
-      hints.push('Soll [zuständige Stelle] [erste Massnahme] umsetzen?');
-      hints.push('Soll [zuständige Stelle] [zweite Massnahme] umsetzen?');
-    }
+  if (split && !multiple) {
+    hints.push('Wenn du das erste Vorhaben einzeln prüfen willst: ' + split[1] + ' ' + split[2] + ' ' + split[4] + '?');
+    hints.push('Wenn du das zweite Vorhaben einzeln prüfen willst: ' + split[1] + ' ' + split[3] + ' ' + split[4] + '?');
+    hints.push('Wenn beide Vorhaben als Paket gemeint sind: ' + split[1] + ' ' + split[2] + ' und ' + split[3] + ' ' + split[4] + '?');
+  } else if (multiple && separateQuestions.every(question => /^soll(?:en)?\s/iu.test(question))) {
+    hints.push(...separateQuestions.map(question => 'Wenn du dieses Vorhaben einzeln prüfen willst: ' + question.replace(/^Soll (?:er|sie) /iu, 'Soll [zuständige Stelle] ')));
+  } else if (alternatives && !multiple && !open) {
+    const alternative = stem.match(/^Soll (die Stadt|die Gemeinde|der Kanton|der Bund) .+ oder soll (?:sie|er) (.+)$/iu);
+    if (alternative) hints.push('Wenn der erste Teil beschreibt, was heute gilt: Soll ' + alternative[1] + ' ' + alternative[2] + '?');
   }
   const keep = stem.match(/^(Soll(?:en)?) (.+) beibehalten werden$/iu);
   if (direction === 'keep' || negative || (continued && direction !== 'change')) {
@@ -67,11 +78,14 @@ function checkProposal(data) {
       tentative ? '«Weiterhin» oder eine ähnliche Wendung deutet darauf hin, dass ein Ja die bisherige Praxis bestätigt.' : 'Ein Ja scheint den heutigen Zustand zu bestätigen.',
       'Wenn du eine Änderung diskutieren willst, formuliere sie als Ja-Option. Bei Nein soll die heutige Regel bestehen bleiben.');
     if (keep) hints.push(keep[1] + ' ' + keep[2] + ' aufgehoben werden? (Falls du eine Aufhebung diskutieren willst.)');
-    else hints.push('Soll [zuständige Stelle] [die heutige Regel] durch [deine gewünschte Änderung] ersetzen?');
+    else if (parkingFees) {
+      hints.push('Wenn du die Gebühr senken willst: Soll ' + parkingFees[1] + ' die ' + parkingFees[2] + ' senken?');
+      hints.push('Wenn du die Gebühr abschaffen willst: Soll ' + parkingFees[1] + ' die ' + parkingFees[2] + ' abschaffen?');
+    } else hints.push('Soll [zuständige Stelle] [die heutige Regel] durch [deine gewünschte Änderung] ersetzen?');
   } else if (direction === 'change' && baseline) {
     add('good', 'Nach deiner Angabe', 'Dein Ausgangspunkt: «' + baseline + '». Nach deiner Einschätzung würde Ja etwas ändern und Nein diesen Zustand belassen.', 'Gleiche den Ausgangspunkt mit einer aktuellen Quelle ab.');
-  } else if (!direction && explicitOutcomes) {
-    add('warn', 'Im Beitrag beschrieben', 'Dein Beitrag benennt die heutige Lage sowie die Folgen von Ja und Nein.', 'Vergleiche diese drei Angaben: Beschreibt Ja die Änderung und Nein dieselbe Regel wie heute?');
+  } else if (!direction && today && onYes && onNo) {
+    add('warn', 'Im Beitrag beschrieben', 'Dein Beitrag nennt «' + today + '», «' + onYes + '» und «' + onNo + '».', 'Vergleiche diese drei Angaben: Beschreibt Ja die Änderung und Nein dieselbe Regel wie heute?');
   } else {
     add('warn', 'Abklären', baseline ? 'Du hast beschrieben, was heute gilt. Die Folgen von Ja und Nein sind noch zu klären.' : 'Aus der Formulierung allein lässt sich nicht erkennen, was heute gilt.', 'Ergänze «Heute gilt …», «Bei Ja ändert sich …» und «Bei Nein bleibt …» im Entwurf oder unter «Rückmeldung präzisieren».');
   }
@@ -84,6 +98,8 @@ function checkProposal(data) {
     add('bad', 'Politischen Bezug ergänzen', 'Die Frage betrifft offenbar eine Entscheidung innerhalb der Klasse.', 'Wenn dein Thema politisch sein soll, wähle eine Regel oder Massnahme, die eine zuständige öffentliche Stelle beeinflussen kann.');
   } else if (route) {
     add('good', 'Weg angegeben', 'Du nennst «' + route + '» als möglichen Weg.' + (foreign ? ' Der Auslandsbezug ist laut deiner Angabe im Beitrag erläutert.' : ''), 'Prüfe anhand einer offiziellen Quelle, wer das Verfahren anstossen darf und welche Stelle entscheiden kann.');
+  } else if (bodyProcedure) {
+    add('warn', 'Verfahren im Beitrag erwähnt', 'Du erwähnst «' + bodyProcedure + '» im Beitrag.', 'Prüfe, welche Stelle zuständig ist und wie dieses Verfahren die gewünschte Änderung anstossen könnte.');
   } else {
     add('warn', 'Abklären', 'Ein Verfahren und eine zuständige Stelle fehlen in den Prüfangaben.', foreign ? 'Recherchiere das konkrete Verfahren im gewählten Land oder in der Organisation.' : 'Kläre zuerst Bund, Kanton oder Gemeinde. Prüfe dann z. B. Volksinitiative, Motion über ein Parlamentsmitglied, Referendum zu einer konkreten Vorlage oder Petition an die zuständige Behörde.');
   }

@@ -14,6 +14,14 @@ function comparableState(value) {
     .replace(/\b(?:eins|zwei|drei|vier|fünf|sechs|sieben|acht|neun|zehn|elf|zwölf)\b/gu, word => String(numberWords.indexOf(word)))
     .replace(/(\d+) (?:quadratmeter|m²)(?=\s|$)/gu, '$1 m²');
   let match;
+  if ((match = state.match(/^der ([\p{L}-]*abstand) beträgt (\d+(?:[.,]\d+)?) (kilometer|km|meter|m)$/u))) {
+    const metres = Number(match[2].replace(',', '.')) * (/^k/u.test(match[3]) ? 1000 : 1);
+    return ['Abstand in Metern', match[1], metres];
+  }
+  if ((match = state.match(/^(?:der|die|das) (.+) ist für alle frei zugänglich$/u)) ||
+      (match = state.match(/^alle dürfen (?:den|die|das) (.+) benutzen$/u))) {
+    return ['Öffentlicher Zugang', match[1]];
+  }
   if ((match = state.match(/^(.+) kostet (?:chf )?(\d+(?:[.,]\d{1,2})?)(?: (franken|chf))?$/u)) &&
       (match[3] || state.includes(' kostet chf '))) {
     return ['Preis in Franken', match[1], Number(match[2].replace(',', '.'))];
@@ -39,6 +47,9 @@ function comparableState(value) {
   }
   if ((match = state.match(/^(?:die ausleihfrist beträgt|ausgeliehene bücher dürfen) (\d+) (tage|wochen)(?: behalten werden)?$/u))) {
     return ['Ausleihfrist in Tagen', Number(match[1]) * (match[2] === 'wochen' ? 7 : 1)];
+  }
+  if ((match = state.match(/^die ([\p{L}-]*frist) beträgt (\d+) (tage|wochen)$/u))) {
+    return ['Frist in Tagen', match[1], Number(match[2]) * (match[3] === 'wochen' ? 7 : 1)];
   }
   if ((match = state.match(/^auf (.+) (?:gilt eine höchstgeschwindigkeit von|darf höchstens) (\d+) km\/h(?: gefahren werden)?$/u))) {
     return ['Tempolimit', match[1], Number(match[2])];
@@ -120,6 +131,7 @@ function checkProposal(data) {
   const bodyProcedure = body?.match(/\b(volksinitiative|initiative|motion|referendum|petition)\b/iu)?.[0];
   const petitionRecipient = body?.match(/\bpetition\b[^.!?\n]{0,120}?\ban\s+(?:den|die|das)\s+(Gemeinderat|Stadtrat|Kantonsrat|Bundesrat|Gemeindeversammlung)\b/iu)?.[1];
   const split = stem.match(/^(Soll (?:die Stadt|die Gemeinde|der Kanton|der Bund)) ([\p{Lu}][\p{L}-]*) oder ([\p{Lu}][\p{L}-]*) (bauen|finanzieren|fördern|einführen)$/u);
+  const coordinatedProjects = stem.match(/^(Soll (?:die Stadt|die Gemeinde|der Kanton|der Bund)) (.+? (?:bauen|finanzieren|fördern|schützen|renaturieren|einführen)) (und|oder) ((?:[A-ZÄÖÜ]|(?:den|die|das|einen|eine|ein) ).+ (?:bauen|finanzieren|fördern|schützen|renaturieren|einführen))$/u);
   const exclusiveProjects = stem.match(/^(Soll (?:die Stadt|die Gemeinde|der Kanton|der Bund)) entweder (.+?) oder (.+?) (bauen|finanzieren|fördern|einführen)$/iu);
   const separateQuestions = text.match(/[^?]+\?/gu)?.map(question => question.trim()) || [];
   const parkingFees = stem.match(/^Soll (die Gemeinde|die Stadt|der Kanton) weiterhin (Gebühren für .+) erheben$/iu);
@@ -144,6 +156,11 @@ function checkProposal(data) {
     add('bad', 'Entscheidung formulieren', 'Der Titel fragt nach dem heutigen Zustand.', 'Nutze die Antwort als Ausgangslage. Formuliere im Titel, welche konkrete Änderung zur Entscheidung stehen soll.');
   } else if (split) {
     add('warn', 'Entscheidung präzisieren', 'Die Frage lässt offen, ob du zwischen zwei Vorhaben wählen oder beide gemeinsam zur Abstimmung stellen willst.', 'Wenn dieselbe Fläche zur Debatte steht, nenne den Ort und frage nach genau einer Nutzung gegenüber dem heutigen Zustand.');
+  } else if (coordinatedProjects) {
+    const isPackage = coordinatedProjects[3] === 'und';
+    add('warn', isPackage ? 'Paket oder Einzelfragen klären' : 'Alternativen prüfen',
+      isPackage ? 'Der Titel verbindet zwei Vorhaben mit «und».' : 'Der Titel stellt zwei Vorhaben mit «oder» zur Wahl.',
+      isPackage ? 'Falls beide gemeinsam beschlossen werden sollen, erkläre im Beitrag, warum sie zusammengehören. Sonst stelle je eine Frage.' : 'Falls du eines der Vorhaben zur Entscheidung stellen willst, vergleiche es mit dem heutigen Zustand.');
   } else if (choice) {
     add('warn', 'Alternativen prüfen', '«Oder» kann eine Wahl zwischen zwei Massnahmen anzeigen. Prüfe, ob ein Ja die Frage eindeutig beantwortet.', 'Falls die beiden Optionen getrennte Massnahmen sind, prüfe jeweils eine davon gegen den heutigen Zustand.');
   } else if (yesNo && stem.split(/\s+/).length >= 3) {
@@ -157,7 +174,12 @@ function checkProposal(data) {
     add('warn', 'Abklären', 'Das Tool erkennt noch keine eindeutige Ja/Nein-Form.', 'Prüfe, ob der Titel als Frage funktioniert. Verwende etwa «Soll …?», «Should …?» oder «Faut-il … ?».');
   }
 
-  if (exclusiveProjects && !multiple) {
+  if (coordinatedProjects && !multiple && !open) {
+    const [, actor, first, , second] = coordinatedProjects;
+    for (const project of [first, second]) {
+      hints.push('Wenn du dieses Vorhaben einzeln prüfen willst: ' + actor + ' ' + project + '?');
+    }
+  } else if (exclusiveProjects && !multiple) {
     const [, actor, first, second, action] = exclusiveProjects;
     for (const project of [first, second]) {
       hints.push('Wenn du dieses Vorhaben einzeln prüfen willst: ' + actor + ' ' + project + ' ' + action + '?');
@@ -212,7 +234,9 @@ function checkProposal(data) {
   } else if (noExplicitlyChanges) {
     add('bad', 'Auch Nein ändert etwas', 'Dein Beitrag beschreibt bei Nein eine Änderung: «' + onNo + '».', 'Beschreibe bei Nein den heutigen Zustand. Falls du zwischen zwei Änderungen wählen willst, formuliere sie als getrennte Fragen.');
   } else if (hasComparison) {
-    if (sameYesText || yesOutcome === 'same' || checkWifiScope) {
+    if (sameYesText === 'Öffentlicher Zugang') {
+      hints.push('Wenn du den Zugang ändern willst, benenne den konkreten Unterschied. Soll [zuständige Stelle] für [Ort] [neue Zugangsregel oder konkrete Verbesserung] einführen?');
+    } else if (sameYesText || yesOutcome === 'same' || checkWifiScope) {
       hints.push('Wenn du eine Änderung diskutieren willst, benenne sie im Titel. Soll [zuständige Stelle] [konkrete Änderung gegenüber heute] umsetzen?');
     }
 

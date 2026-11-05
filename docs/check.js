@@ -31,6 +31,12 @@ function checkProposal(data) {
   const onNo = body?.match(/(?:^|[,.!?\n])\s*(bei nein\b[^.!?\n]+)/iu)?.[1].trim();
   const noKeepsBaseline = !/\b(?:nicht|kaum)\b/iu.test(onNo || '') && /^bei nein\s+(?:bleibt|bleiben)\b.*\b(?:unverändert|wie bisher|wie heute)\b/iu.test(onNo || '');
   const yesStatesChange = !/\b(?:nicht|nie|unverändert|wie bisher)\b/iu.test(onYes || '') && /^bei ja\b.*\b(?:neu|zusätzlich|erstmals|auch am|auch an|auch sonntags|wird abgeschafft)\b/iu.test(onYes || '');
+  // Compare the same service and day before treating "auch" as a change.
+  const sundayServiceQuestion = /\b(?:ortsbus|bus)\b.*\b(?:am sonntag|sonntags)\s+fahren lassen$/iu.test(stem);
+  const sundayServiceNow = /^(?:heute|bisher|derzeit)\s+fährt\s+(?:er|der (?:ortsbus|bus))\s+(?:bereits\s+|schon\s+|auch\s+)?(?:am sonntag|sonntags)$/iu;
+  const sundayServiceAtYes = /^bei ja\s+fährt\s+(?:er|der (?:ortsbus|bus))\s+(?:auch\s+)?(?:am sonntag|sonntags)$/iu;
+  const sundayServiceAlreadyRuns = sundayServiceQuestion &&
+    sundayServiceNow.test(today || '') && sundayServiceAtYes.test(onYes || '');
   const bodyProcedure = body?.match(/\b(volksinitiative|initiative|motion|referendum|petition)\b/iu)?.[0];
   const petitionRecipient = body?.match(/\bpetition\b[^.!?\n]{0,120}?\ban\s+(?:den|die|das)\s+(Gemeinderat|Stadtrat|Kantonsrat|Bundesrat|Gemeindeversammlung)\b/iu)?.[1];
   const split = stem.match(/^(Soll (?:die Stadt|die Gemeinde|der Kanton|der Bund)) ([\p{Lu}][\p{L}-]*) oder ([\p{Lu}][\p{L}-]*) (bauen|finanzieren|fördern|einführen)$/u);
@@ -95,7 +101,11 @@ function checkProposal(data) {
     if (alternative) hints.push('Wenn der erste Teil beschreibt, was heute gilt: Soll ' + alternative[1] + ' ' + alternative[2].replace(/\bdort\b/iu, 'auf [genauer Ort]') + '?');
   }
   const keep = stem.match(/^(Soll(?:en)?) (.+) beibehalten werden$/iu);
-  if (direction === 'keep' || negative || (continued && direction !== 'change')) {
+  if (sundayServiceAlreadyRuns) {
+    add('bad', 'Ja bestätigt den heutigen Zustand',
+      'Laut deinem Beitrag fährt der Bus heute schon sonntags. Die Ja-Option beschreibt denselben Betrieb.',
+      'Wenn du eine Änderung des Sonntagsangebots meinst, nenne sie im Titel und im Beitrag. Beschreibe bei Nein den heutigen Fahrplan.');
+  } else if (direction === 'keep' || negative || (continued && direction !== 'change')) {
     const tentative = continued && !negative && direction !== 'keep';
     add(tentative ? 'warn' : 'bad', tentative ? 'Richtung prüfen' : 'Überarbeiten',
       tentative ? '«Weiterhin» oder eine ähnliche Wendung deutet darauf hin, dass ein Ja die bisherige Praxis bestätigt.' : 'Ein Ja scheint den heutigen Zustand zu bestätigen.',

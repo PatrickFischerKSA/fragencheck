@@ -2,6 +2,58 @@
 
 const criteria = ['Entscheidungsfrage', 'Ja verändert etwas', 'Politischer Weg', 'Grund- und Menschenrechte'];
 
+const numberWords = ['null', 'eins', 'zwei', 'drei', 'vier', 'fünf', 'sechs', 'sieben', 'acht', 'neun', 'zehn', 'elf', 'zwölf'];
+
+function normalizeState(value) {
+  return (value || '').normalize('NFC').toLocaleLowerCase('de-CH')
+    .trim().replace(/[.!?]+$/u, '').replace(/\s+/gu, ' ');
+}
+
+function comparableState(value) {
+  const state = normalizeState(value)
+    .replace(/\b(?:eins|zwei|drei|vier|fünf|sechs|sieben|acht|neun|zehn|elf|zwölf)\b/gu, word => String(numberWords.indexOf(word)))
+    .replace(/(\d+) (?:quadratmeter|m²)(?=\s|$)/gu, '$1 m²');
+  let match;
+  if ((match = state.match(/^(?:der|die|das) (.+) (?:umfasst|bleibt) (\d+) m²(?: gross)?$/u))) {
+    return ['Fläche', match[1], Number(match[2])];
+  }
+  if ((match = state.match(/^das (.+) ist (?:jeden )?(montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag) geöffnet$/u))) {
+    return ['Öffnungstag', match[1], match[2]];
+  }
+  if ((match = state.match(/^(montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)s hat das (.+) offen$/u))) {
+    return ['Öffnungstag', match[2], match[1]];
+  }
+  if ((match = state.match(/^auf (.+) (?:ist parkieren verboten|darf nicht parkiert werden)$/u))) {
+    return ['Parkverbot', match[1]];
+  }
+  if (/^(?:der kehricht wird wöchentlich abgeholt|die kehrichtabfuhr kommt einmal pro woche)$/u.test(state)) {
+    return ['Abholung', 'Kehricht', 7];
+  }
+  if ((match = state.match(/^(?:die ausleihfrist beträgt|ausgeliehene bücher dürfen) (\d+) (tage|wochen)(?: behalten werden)?$/u))) {
+    return ['Ausleihfrist in Tagen', Number(match[1]) * (match[2] === 'wochen' ? 7 : 1)];
+  }
+  if ((match = state.match(/^auf (.+) (?:gilt eine höchstgeschwindigkeit von|darf höchstens) (\d+) km\/h(?: gefahren werden)?$/u))) {
+    return ['Tempolimit', match[1], Number(match[2])];
+  }
+  if ((match = state.match(/^der (.+) fährt um (mitternacht|00[.:]00 uhr) ab$/u))) {
+    return ['Abfahrt', match[1], '00:00'];
+  }
+  if (/^(?:eine jahreskarte erhält man ab 18 jahren|nur volljährige können eine jahreskarte kaufen)$/u.test(state)) {
+    return ['Altersgrenze', 'Jahreskarte', 18];
+  }
+  if ((match = state.match(/^der eintritt zum (.+) ist frei$/u) || state.match(/^für das (.+) wird kein eintritt verlangt$/u))) {
+    return ['Eintritt frei', match[1]];
+  }
+  return ['Wortlaut', state];
+}
+
+function compareStates(today, outcome) {
+  if (!normalizeState(today) || !normalizeState(outcome)) return '';
+  const first = comparableState(today);
+  const second = comparableState(outcome);
+  return JSON.stringify(first) === JSON.stringify(second) ? first[0] : '';
+}
+
 function checkProposal(data) {
   const { title, body, scope, baseline, direction, yesOutcome, noOutcome, yesDetail, noDetail, route, pro, contra, rights, foreignConfirmed } = data;
   const text = title.trim();
@@ -129,11 +181,11 @@ function checkProposal(data) {
     if (alternative) hints.push('Wenn der erste Teil beschreibt, was heute gilt: Soll ' + alternative[1] + ' ' + alternative[2].replace(/\bdort\b/iu, 'auf [genauer Ort]') + '?');
   }
   const keep = stem.match(/^(Soll(?:en)?) (.+) beibehalten werden$/iu);
-  const normalizeState = value => (value || '').normalize('NFC').toLocaleLowerCase('de-CH')
-    .trim().replace(/[.!?]+$/u, '').replace(/\s+/gu, ' ').trim();
-  const todayState = normalizeState(baseline);
-  const sameYesText = todayState && todayState === normalizeState(yesDetail);
-  const sameNoText = todayState && todayState === normalizeState(noDetail);
+  const sameYesText = compareStates(baseline, yesDetail);
+  const sameNoText = compareStates(baseline, noDetail);
+  const freeWifi = normalizeState(baseline).match(/^das wlan im (.+) ist kostenlos$/u);
+  const freeStudentWifi = normalizeState(yesDetail).match(/^schülerinnen und schüler bezahlen für das wlan im (.+) nichts$/u);
+  const checkWifiScope = freeWifi && freeStudentWifi && freeWifi[1] === freeStudentWifi[1];
   const hasComparison = yesOutcome || noOutcome || yesDetail || noDetail;
   if (sundayServiceAlreadyRuns || sameOpeningDay) {
     add('bad', 'Ja bestätigt den heutigen Zustand',
@@ -142,11 +194,17 @@ function checkProposal(data) {
   } else if (noExplicitlyChanges) {
     add('bad', 'Auch Nein ändert etwas', 'Dein Beitrag beschreibt bei Nein eine Änderung: «' + onNo + '».', 'Beschreibe bei Nein den heutigen Zustand. Falls du zwischen zwei Änderungen wählen willst, formuliere sie als getrennte Fragen.');
   } else if (hasComparison) {
+    if (sameYesText || yesOutcome === 'same' || checkWifiScope) {
+      hints.push('Wenn du eine Änderung diskutieren willst, benenne sie im Titel. Soll [zuständige Stelle] [konkrete Änderung gegenüber heute] umsetzen?');
+    }
+
     if (yesOutcome === 'same' || sameYesText) {
       add('bad', 'Ja bestätigt den heutigen Zustand', sameYesText
-        ? 'Der beschriebene Zustand bei Ja entspricht deiner Beschreibung für heute.'
+        ? 'Der Vergleich erkennt dieselbe Angabe bei Heute und Ja' + (sameYesText === 'Wortlaut' ? '.' : ' (' + sameYesText + ').')
         : 'Du hast bei Ja «Wie heute» ausgewählt.',
       'Falls du eine Änderung meinst, beschreibe konkret, was nach einem Ja anders wäre.');
+    } else if (checkWifiScope) {
+      add('warn', 'Kosten und Zielgruppe vergleichen', 'Beide Angaben beschreiben kostenloses WLAN. Bei Ja sind ausdrücklich die Schüler:innen genannt.', 'Prüfe, wer das WLAN heute gratis nutzen darf und ob sich dieser Personenkreis durch ein Ja ändert.');
     } else if (noOutcome === 'different') {
       add('bad', 'Auch Nein ändert etwas', sameNoText
         ? 'Du hast bei Nein «Anders als heute» ausgewählt, beschreibst aber denselben Zustand wie heute.'
